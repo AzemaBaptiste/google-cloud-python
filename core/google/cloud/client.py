@@ -29,9 +29,12 @@ from google.oauth2 import service_account
 
 _GOOGLE_AUTH_CREDENTIALS_HELP = (
     "This library only supports credentials from google-auth-library-python. "
-    "See https://google-cloud-python.readthedocs.io/en/latest/core/auth.html "
+    "See https://google-auth.readthedocs.io/en/latest/ "
     "for help on authentication with this library."
 )
+
+# Default timeout for auth requests.
+_CREDENTIALS_REFRESH_TIMEOUT = 300
 
 
 class _ClientFactoryMixin(object):
@@ -59,7 +62,6 @@ class _ClientFactoryMixin(object):
         :type args: tuple
         :param args: Remaining positional arguments to pass to constructor.
 
-        :type kwargs: dict
         :param kwargs: Remaining keyword arguments to pass to constructor.
 
         :rtype: :class:`_ClientFactoryMixin`
@@ -153,7 +155,8 @@ class Client(_ClientFactoryMixin):
         """
         if self._http_internal is None:
             self._http_internal = google.auth.transport.requests.AuthorizedSession(
-                self._credentials
+                self._credentials,
+                refresh_timeout=_CREDENTIALS_REFRESH_TIMEOUT,
             )
         return self._http_internal
 

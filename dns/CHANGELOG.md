@@ -4,6 +4,25 @@
 
 [1]: https://pypi.org/project/google-cloud-dns/#history
 
+## 0.30.2
+
+07-11-2019 10:09 PDT
+
+### Implementation Changes
+- Change base url to dns.googleapis.com ([#8641](https://github.com/googleapis/google-cloud-python/pull/8641))
+
+### Internal / Testing Changes
+- Add nox session 'docs' to remaining manual clients. ([#8478](https://github.com/googleapis/google-cloud-python/pull/8478))
+- Add docs job to publish to googleapis.dev. ([#8464](https://github.com/googleapis/google-cloud-python/pull/8464))
+
+## 0.30.1
+
+06-04-2019 11:13 PDT
+
+
+### Dependencies
+- Don't pin 'google-api-core' in libs using 'google-cloud-core'. ([#8213](https://github.com/googleapis/google-cloud-python/pull/8213))
+
 ## 0.30.0
 
 05-16-2019 12:23 PDT

@@ -21,6 +21,7 @@ import pkg_resources
 import warnings
 
 from google.oauth2 import service_account
+import google.api_core.client_options
 import google.api_core.gapic_v1.client_info
 import google.api_core.gapic_v1.config
 import google.api_core.gapic_v1.method
@@ -129,6 +130,7 @@ class WebSecurityScannerClient(object):
         credentials=None,
         client_config=None,
         client_info=None,
+        client_options=None,
     ):
         """Constructor.
 
@@ -159,6 +161,9 @@ class WebSecurityScannerClient(object):
                 API requests. If ``None``, then default info will be used.
                 Generally, you only need to set this if you're developing
                 your own client library.
+            client_options (Union[dict, google.api_core.client_options.ClientOptions]):
+                Client options used to set user options on the client. API Endpoint
+                should be set through client_options.
         """
         # Raise deprecation warnings for things we want to go away.
         if client_config is not None:
@@ -177,6 +182,15 @@ class WebSecurityScannerClient(object):
                 stacklevel=2,
             )
 
+        api_endpoint = self.SERVICE_ADDRESS
+        if client_options:
+            if type(client_options) == dict:
+                client_options = google.api_core.client_options.from_dict(
+                    client_options
+                )
+            if client_options.api_endpoint:
+                api_endpoint = client_options.api_endpoint
+
         # Instantiate the transport.
         # The transport is responsible for handling serialization and
         # deserialization and actually sending data to the service.
@@ -185,6 +199,7 @@ class WebSecurityScannerClient(object):
                 self.transport = transport(
                     credentials=credentials,
                     default_class=web_security_scanner_grpc_transport.WebSecurityScannerGrpcTransport,
+                    address=api_endpoint,
                 )
             else:
                 if credentials:
@@ -195,7 +210,7 @@ class WebSecurityScannerClient(object):
                 self.transport = transport
         else:
             self.transport = web_security_scanner_grpc_transport.WebSecurityScannerGrpcTransport(
-                address=self.SERVICE_ADDRESS, channel=channel, credentials=credentials
+                address=api_endpoint, channel=channel, credentials=credentials
             )
 
         if client_info is None:
@@ -245,17 +260,15 @@ class WebSecurityScannerClient(object):
             >>> response = client.create_scan_config(parent, scan_config)
 
         Args:
-            parent (str): Required.
-                The parent resource name where the scan is created, which should be a
+            parent (str): Required. The parent resource name where the scan is created, which should be a
                 project resource name in the format 'projects/{projectId}'.
-            scan_config (Union[dict, ~google.cloud.websecurityscanner_v1alpha.types.ScanConfig]): Required.
-                The ScanConfig to be created.
+            scan_config (Union[dict, ~google.cloud.websecurityscanner_v1alpha.types.ScanConfig]): Required. The ScanConfig to be created.
 
                 If a dict is provided, it must be of the same form as the protobuf
                 message :class:`~google.cloud.websecurityscanner_v1alpha.types.ScanConfig`
             retry (Optional[google.api_core.retry.Retry]):  A retry object used
-                to retry requests. If ``None`` is specified, requests will not
-                be retried.
+                to retry requests. If ``None`` is specified, requests will
+                be retried using a default configuration.
             timeout (Optional[float]): The amount of time, in seconds, to wait
                 for the request to complete. Note that if ``retry`` is
                 specified, the timeout applies to each individual attempt.
@@ -323,12 +336,11 @@ class WebSecurityScannerClient(object):
             >>> client.delete_scan_config(name)
 
         Args:
-            name (str): Required.
-                The resource name of the ScanConfig to be deleted. The name follows the
+            name (str): Required. The resource name of the ScanConfig to be deleted. The name follows the
                 format of 'projects/{projectId}/scanConfigs/{scanConfigId}'.
             retry (Optional[google.api_core.retry.Retry]):  A retry object used
-                to retry requests. If ``None`` is specified, requests will not
-                be retried.
+                to retry requests. If ``None`` is specified, requests will
+                be retried using a default configuration.
             timeout (Optional[float]): The amount of time, in seconds, to wait
                 for the request to complete. Note that if ``retry`` is
                 specified, the timeout applies to each individual attempt.
@@ -391,12 +403,11 @@ class WebSecurityScannerClient(object):
             >>> response = client.get_scan_config(name)
 
         Args:
-            name (str): Required.
-                The resource name of the ScanConfig to be returned. The name follows the
+            name (str): Required. The resource name of the ScanConfig to be returned. The name follows the
                 format of 'projects/{projectId}/scanConfigs/{scanConfigId}'.
             retry (Optional[google.api_core.retry.Retry]):  A retry object used
-                to retry requests. If ``None`` is specified, requests will not
-                be retried.
+                to retry requests. If ``None`` is specified, requests will
+                be retried using a default configuration.
             timeout (Optional[float]): The amount of time, in seconds, to wait
                 for the request to complete. Note that if ``retry`` is
                 specified, the timeout applies to each individual attempt.
@@ -475,8 +486,7 @@ class WebSecurityScannerClient(object):
             ...         pass
 
         Args:
-            parent (str): Required.
-                The parent resource name, which should be a project resource name in the
+            parent (str): Required. The parent resource name, which should be a project resource name in the
                 format 'projects/{projectId}'.
             page_size (int): The maximum number of resources contained in the
                 underlying API response. If page streaming is performed per-
@@ -484,8 +494,8 @@ class WebSecurityScannerClient(object):
                 streaming is performed per-page, this determines the maximum number
                 of resources in a page.
             retry (Optional[google.api_core.retry.Retry]):  A retry object used
-                to retry requests. If ``None`` is specified, requests will not
-                be retried.
+                to retry requests. If ``None`` is specified, requests will
+                be retried using a default configuration.
             timeout (Optional[float]): The amount of time, in seconds, to wait
                 for the request to complete. Note that if ``retry`` is
                 specified, the timeout applies to each individual attempt.
@@ -493,10 +503,10 @@ class WebSecurityScannerClient(object):
                 that is provided to the method.
 
         Returns:
-            A :class:`~google.gax.PageIterator` instance. By default, this
-            is an iterable of :class:`~google.cloud.websecurityscanner_v1alpha.types.ScanConfig` instances.
-            This object can also be configured to iterate over the pages
-            of the response through the `options` parameter.
+            A :class:`~google.api_core.page_iterator.PageIterator` instance.
+            An iterable of :class:`~google.cloud.websecurityscanner_v1alpha.types.ScanConfig` instances.
+            You can also iterate over the pages of the response
+            using its `pages` property.
 
         Raises:
             google.api_core.exceptions.GoogleAPICallError: If the request
@@ -572,8 +582,7 @@ class WebSecurityScannerClient(object):
             >>> response = client.update_scan_config(scan_config, update_mask)
 
         Args:
-            scan_config (Union[dict, ~google.cloud.websecurityscanner_v1alpha.types.ScanConfig]): Required.
-                The ScanConfig to be updated. The name field must be set to identify the
+            scan_config (Union[dict, ~google.cloud.websecurityscanner_v1alpha.types.ScanConfig]): Required. The ScanConfig to be updated. The name field must be set to identify the
                 resource to be updated. The values of fields not covered by the mask
                 will be ignored.
 
@@ -586,8 +595,8 @@ class WebSecurityScannerClient(object):
                 If a dict is provided, it must be of the same form as the protobuf
                 message :class:`~google.cloud.websecurityscanner_v1alpha.types.FieldMask`
             retry (Optional[google.api_core.retry.Retry]):  A retry object used
-                to retry requests. If ``None`` is specified, requests will not
-                be retried.
+                to retry requests. If ``None`` is specified, requests will
+                be retried using a default configuration.
             timeout (Optional[float]): The amount of time, in seconds, to wait
                 for the request to complete. Note that if ``retry`` is
                 specified, the timeout applies to each individual attempt.
@@ -655,12 +664,11 @@ class WebSecurityScannerClient(object):
             >>> response = client.start_scan_run(name)
 
         Args:
-            name (str): Required.
-                The resource name of the ScanConfig to be used. The name follows the
+            name (str): Required. The resource name of the ScanConfig to be used. The name follows the
                 format of 'projects/{projectId}/scanConfigs/{scanConfigId}'.
             retry (Optional[google.api_core.retry.Retry]):  A retry object used
-                to retry requests. If ``None`` is specified, requests will not
-                be retried.
+                to retry requests. If ``None`` is specified, requests will
+                be retried using a default configuration.
             timeout (Optional[float]): The amount of time, in seconds, to wait
                 for the request to complete. Note that if ``retry`` is
                 specified, the timeout applies to each individual attempt.
@@ -726,13 +734,12 @@ class WebSecurityScannerClient(object):
             >>> response = client.get_scan_run(name)
 
         Args:
-            name (str): Required.
-                The resource name of the ScanRun to be returned. The name follows the
+            name (str): Required. The resource name of the ScanRun to be returned. The name follows the
                 format of
                 'projects/{projectId}/scanConfigs/{scanConfigId}/scanRuns/{scanRunId}'.
             retry (Optional[google.api_core.retry.Retry]):  A retry object used
-                to retry requests. If ``None`` is specified, requests will not
-                be retried.
+                to retry requests. If ``None`` is specified, requests will
+                be retried using a default configuration.
             timeout (Optional[float]): The amount of time, in seconds, to wait
                 for the request to complete. Note that if ``retry`` is
                 specified, the timeout applies to each individual attempt.
@@ -812,8 +819,7 @@ class WebSecurityScannerClient(object):
             ...         pass
 
         Args:
-            parent (str): Required.
-                The parent resource name, which should be a scan resource name in the
+            parent (str): Required. The parent resource name, which should be a scan resource name in the
                 format 'projects/{projectId}/scanConfigs/{scanConfigId}'.
             page_size (int): The maximum number of resources contained in the
                 underlying API response. If page streaming is performed per-
@@ -821,8 +827,8 @@ class WebSecurityScannerClient(object):
                 streaming is performed per-page, this determines the maximum number
                 of resources in a page.
             retry (Optional[google.api_core.retry.Retry]):  A retry object used
-                to retry requests. If ``None`` is specified, requests will not
-                be retried.
+                to retry requests. If ``None`` is specified, requests will
+                be retried using a default configuration.
             timeout (Optional[float]): The amount of time, in seconds, to wait
                 for the request to complete. Note that if ``retry`` is
                 specified, the timeout applies to each individual attempt.
@@ -830,10 +836,10 @@ class WebSecurityScannerClient(object):
                 that is provided to the method.
 
         Returns:
-            A :class:`~google.gax.PageIterator` instance. By default, this
-            is an iterable of :class:`~google.cloud.websecurityscanner_v1alpha.types.ScanRun` instances.
-            This object can also be configured to iterate over the pages
-            of the response through the `options` parameter.
+            A :class:`~google.api_core.page_iterator.PageIterator` instance.
+            An iterable of :class:`~google.cloud.websecurityscanner_v1alpha.types.ScanRun` instances.
+            You can also iterate over the pages of the response
+            using its `pages` property.
 
         Raises:
             google.api_core.exceptions.GoogleAPICallError: If the request
@@ -904,13 +910,12 @@ class WebSecurityScannerClient(object):
             >>> response = client.stop_scan_run(name)
 
         Args:
-            name (str): Required.
-                The resource name of the ScanRun to be stopped. The name follows the
+            name (str): Required. The resource name of the ScanRun to be stopped. The name follows the
                 format of
                 'projects/{projectId}/scanConfigs/{scanConfigId}/scanRuns/{scanRunId}'.
             retry (Optional[google.api_core.retry.Retry]):  A retry object used
-                to retry requests. If ``None`` is specified, requests will not
-                be retried.
+                to retry requests. If ``None`` is specified, requests will
+                be retried using a default configuration.
             timeout (Optional[float]): The amount of time, in seconds, to wait
                 for the request to complete. Note that if ``retry`` is
                 specified, the timeout applies to each individual attempt.
@@ -989,8 +994,7 @@ class WebSecurityScannerClient(object):
             ...         pass
 
         Args:
-            parent (str): Required.
-                The parent resource name, which should be a scan run resource name in the
+            parent (str): Required. The parent resource name, which should be a scan run resource name in the
                 format
                 'projects/{projectId}/scanConfigs/{scanConfigId}/scanRuns/{scanRunId}'.
             page_size (int): The maximum number of resources contained in the
@@ -999,8 +1003,8 @@ class WebSecurityScannerClient(object):
                 streaming is performed per-page, this determines the maximum number
                 of resources in a page.
             retry (Optional[google.api_core.retry.Retry]):  A retry object used
-                to retry requests. If ``None`` is specified, requests will not
-                be retried.
+                to retry requests. If ``None`` is specified, requests will
+                be retried using a default configuration.
             timeout (Optional[float]): The amount of time, in seconds, to wait
                 for the request to complete. Note that if ``retry`` is
                 specified, the timeout applies to each individual attempt.
@@ -1008,10 +1012,10 @@ class WebSecurityScannerClient(object):
                 that is provided to the method.
 
         Returns:
-            A :class:`~google.gax.PageIterator` instance. By default, this
-            is an iterable of :class:`~google.cloud.websecurityscanner_v1alpha.types.CrawledUrl` instances.
-            This object can also be configured to iterate over the pages
-            of the response through the `options` parameter.
+            A :class:`~google.api_core.page_iterator.PageIterator` instance.
+            An iterable of :class:`~google.cloud.websecurityscanner_v1alpha.types.CrawledUrl` instances.
+            You can also iterate over the pages of the response
+            using its `pages` property.
 
         Raises:
             google.api_core.exceptions.GoogleAPICallError: If the request
@@ -1082,13 +1086,12 @@ class WebSecurityScannerClient(object):
             >>> response = client.get_finding(name)
 
         Args:
-            name (str): Required.
-                The resource name of the Finding to be returned. The name follows the
+            name (str): Required. The resource name of the Finding to be returned. The name follows the
                 format of
                 'projects/{projectId}/scanConfigs/{scanConfigId}/scanRuns/{scanRunId}/findings/{findingId}'.
             retry (Optional[google.api_core.retry.Retry]):  A retry object used
-                to retry requests. If ``None`` is specified, requests will not
-                be retried.
+                to retry requests. If ``None`` is specified, requests will
+                be retried using a default configuration.
             timeout (Optional[float]): The amount of time, in seconds, to wait
                 for the request to complete. Note that if ``retry`` is
                 specified, the timeout applies to each individual attempt.
@@ -1171,20 +1174,19 @@ class WebSecurityScannerClient(object):
             ...         pass
 
         Args:
-            parent (str): Required.
-                The parent resource name, which should be a scan run resource name in the
+            parent (str): Required. The parent resource name, which should be a scan run resource name in the
                 format
                 'projects/{projectId}/scanConfigs/{scanConfigId}/scanRuns/{scanRunId}'.
-            filter_ (str): The filter expression. The expression must be in the format: . Supported
-                field: 'finding\_type'. Supported operator: '='.
+            filter_ (str): Required. The filter expression. The expression must be in the format: .
+                Supported field: 'finding\_type'. Supported operator: '='.
             page_size (int): The maximum number of resources contained in the
                 underlying API response. If page streaming is performed per-
                 resource, this parameter does not affect the return value. If page
                 streaming is performed per-page, this determines the maximum number
                 of resources in a page.
             retry (Optional[google.api_core.retry.Retry]):  A retry object used
-                to retry requests. If ``None`` is specified, requests will not
-                be retried.
+                to retry requests. If ``None`` is specified, requests will
+                be retried using a default configuration.
             timeout (Optional[float]): The amount of time, in seconds, to wait
                 for the request to complete. Note that if ``retry`` is
                 specified, the timeout applies to each individual attempt.
@@ -1192,10 +1194,10 @@ class WebSecurityScannerClient(object):
                 that is provided to the method.
 
         Returns:
-            A :class:`~google.gax.PageIterator` instance. By default, this
-            is an iterable of :class:`~google.cloud.websecurityscanner_v1alpha.types.Finding` instances.
-            This object can also be configured to iterate over the pages
-            of the response through the `options` parameter.
+            A :class:`~google.api_core.page_iterator.PageIterator` instance.
+            An iterable of :class:`~google.cloud.websecurityscanner_v1alpha.types.Finding` instances.
+            You can also iterate over the pages of the response
+            using its `pages` property.
 
         Raises:
             google.api_core.exceptions.GoogleAPICallError: If the request
@@ -1266,13 +1268,12 @@ class WebSecurityScannerClient(object):
             >>> response = client.list_finding_type_stats(parent)
 
         Args:
-            parent (str): Required.
-                The parent resource name, which should be a scan run resource name in the
+            parent (str): Required. The parent resource name, which should be a scan run resource name in the
                 format
                 'projects/{projectId}/scanConfigs/{scanConfigId}/scanRuns/{scanRunId}'.
             retry (Optional[google.api_core.retry.Retry]):  A retry object used
-                to retry requests. If ``None`` is specified, requests will not
-                be retried.
+                to retry requests. If ``None`` is specified, requests will
+                be retried using a default configuration.
             timeout (Optional[float]): The amount of time, in seconds, to wait
                 for the request to complete. Note that if ``retry`` is
                 specified, the timeout applies to each individual attempt.

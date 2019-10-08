@@ -21,6 +21,7 @@ import json
 import warnings
 
 import six
+from six.moves.urllib.parse import urlsplit
 
 from google.api_core import page_iterator
 from google.api_core import datetime_helpers
@@ -38,6 +39,17 @@ from google.cloud.storage._signing import generate_signed_url_v4
 from google.cloud.storage.acl import BucketACL
 from google.cloud.storage.acl import DefaultObjectACL
 from google.cloud.storage.blob import Blob
+from google.cloud.storage.constants import COLDLINE_STORAGE_CLASS
+from google.cloud.storage.constants import DUAL_REGION_LOCATION_TYPE
+from google.cloud.storage.constants import (
+    DURABLE_REDUCED_AVAILABILITY_LEGACY_STORAGE_CLASS,
+)
+from google.cloud.storage.constants import MULTI_REGIONAL_LEGACY_STORAGE_CLASS
+from google.cloud.storage.constants import MULTI_REGION_LOCATION_TYPE
+from google.cloud.storage.constants import NEARLINE_STORAGE_CLASS
+from google.cloud.storage.constants import REGIONAL_LEGACY_STORAGE_CLASS
+from google.cloud.storage.constants import REGION_LOCATION_TYPE
+from google.cloud.storage.constants import STANDARD_STORAGE_CLASS
 from google.cloud.storage.notification import BucketNotification
 from google.cloud.storage.notification import NONE_PAYLOAD_FORMAT
 
@@ -129,7 +141,7 @@ class LifecycleRuleConditions(dict):
                     version.
 
     :type matches_storage_class: list(str), one or more of
-                                 :attr:`Bucket._STORAGE_CLASSES`.
+                                 :attr:`Bucket.STORAGE_CLASSES`.
     :param matches_storage_class: (optional) apply rule action to items which
                                   whose storage class matches this value.
 
@@ -243,7 +255,7 @@ class LifecycleRuleDelete(dict):
 class LifecycleRuleSetStorageClass(dict):
     """Map a lifecycle rule upating storage class of matching items.
 
-    :type storage_class: str, one of :attr:`Bucket._STORAGE_CLASSES`.
+    :type storage_class: str, one of :attr:`Bucket.STORAGE_CLASSES`.
     :param storage_class: new storage class to assign to matching items.
 
     :type kw: dict
@@ -386,20 +398,29 @@ class Bucket(_PropertyMixin):
     This is used in Bucket.delete() and Bucket.make_public().
     """
 
-    _STORAGE_CLASSES = (
-        "MULTI_REGIONAL",
-        "REGIONAL",
-        "NEARLINE",
-        "COLDLINE",
-        "STANDARD",  # alias for MULTI_REGIONAL/REGIONAL, based on location
-        "DURABLE_REDUCED_AVAILABILITY",  # deprecated
+    STORAGE_CLASSES = (
+        STANDARD_STORAGE_CLASS,
+        NEARLINE_STORAGE_CLASS,
+        COLDLINE_STORAGE_CLASS,
+        MULTI_REGIONAL_LEGACY_STORAGE_CLASS,  # legacy
+        REGIONAL_LEGACY_STORAGE_CLASS,  # legacy
+        DURABLE_REDUCED_AVAILABILITY_LEGACY_STORAGE_CLASS,  # legacy
     )
     """Allowed values for :attr:`storage_class`.
+
+    Default value is :attr:`STANDARD_STORAGE_CLASS`.
 
     See
     https://cloud.google.com/storage/docs/json_api/v1/buckets#storageClass
     https://cloud.google.com/storage/docs/storage-classes
     """
+
+    _LOCATION_TYPES = (
+        MULTI_REGION_LOCATION_TYPE,
+        REGION_LOCATION_TYPE,
+        DUAL_REGION_LOCATION_TYPE,
+    )
+    """Allowed values for :attr:`location_type`."""
 
     def __init__(self, client, name=None, user_project=None):
         name = _validate_name(name)
@@ -436,6 +457,35 @@ class Bucket(_PropertyMixin):
         :rtype: str
         """
         return self._user_project
+
+    @classmethod
+    def from_string(cls, uri, client=None):
+        """Get a constructor for bucket object by URI.
+
+        :type uri: str
+        :param uri: The bucket uri pass to get bucket object.
+
+        :type client: :class:`~google.cloud.storage.client.Client` or
+                      ``NoneType``
+        :param client: Optional. The client to use.
+
+        :rtype: :class:`google.cloud.storage.bucket.Bucket`
+        :returns: The bucket object created.
+
+        Example:
+            Get a constructor for bucket object by URI..
+
+            >>> from google.cloud import storage
+            >>> from google.cloud.storage.bucket import Bucket
+            >>> client = storage.Client()
+            >>> bucket = Bucket.from_string("gs://bucket",client)
+        """
+        scheme, netloc, path, query, frag = urlsplit(uri)
+
+        if scheme != "gs":
+            raise ValueError("URI scheme must be gs")
+
+        return cls(client, name=netloc)
 
     def blob(
         self,
@@ -684,7 +734,6 @@ class Bucket(_PropertyMixin):
         :param generation: Optional. If present, selects a specific revision of
                            this object.
 
-        :type kwargs: dict
         :param kwargs: Keyword arguments to pass to the
                        :class:`~google.cloud.storage.blob.Blob` constructor.
 
@@ -720,6 +769,9 @@ class Bucket(_PropertyMixin):
         client=None,
     ):
         """Return an iterator used to find blobs in the bucket.
+
+        .. note::
+          Direct use of this method is deprecated. Use ``Client.list_blobs`` instead.
 
         If :attr:`user_project` is set, bills the API request to that project.
 
@@ -1332,7 +1384,7 @@ class Bucket(_PropertyMixin):
           :start-after: [START add_lifecycle_set_storage_class_rule]
           :end-before: [END add_lifecycle_set_storage_class_rule]
 
-        :type storage_class: str, one of :attr:`_STORAGE_CLASSES`.
+        :type storage_class: str, one of :attr:`STORAGE_CLASSES`.
         :param storage_class: new storage class to assign to matching items.
 
         :type kw: dict
@@ -1374,6 +1426,25 @@ class Bucket(_PropertyMixin):
         """
         warnings.warn(_LOCATION_SETTER_MESSAGE, DeprecationWarning, stacklevel=2)
         self._location = value
+
+    @property
+    def location_type(self):
+        """Retrieve or set the location type for the bucket.
+
+        See https://cloud.google.com/storage/docs/storage-classes
+
+        :setter: Set the location type for this bucket.
+        :getter: Gets the the location type for this bucket.
+
+        :rtype: str or ``NoneType``
+        :returns:
+            If set, one of
+            :attr:`~google.cloud.storage.constants.MULTI_REGION_LOCATION_TYPE`,
+            :attr:`~google.cloud.storage.constants.REGION_LOCATION_TYPE`, or
+            :attr:`~google.cloud.storage.constants.DUAL_REGION_LOCATION_TYPE`,
+            else ``None``.
+        """
+        return self._properties.get("locationType")
 
     def get_logging(self):
         """Return info about access logging for this bucket.
@@ -1531,9 +1602,16 @@ class Bucket(_PropertyMixin):
         :getter: Gets the the storage class for this bucket.
 
         :rtype: str or ``NoneType``
-        :returns: If set, one of "MULTI_REGIONAL", "REGIONAL",
-                  "NEARLINE", "COLDLINE", "STANDARD", or
-                  "DURABLE_REDUCED_AVAILABILITY", else ``None``.
+        :returns:
+            If set, one of
+            :attr:`~google.cloud.storage.constants.NEARLINE_STORAGE_CLASS`,
+            :attr:`~google.cloud.storage.constants.COLDLINE_STORAGE_CLASS`,
+            :attr:`~google.cloud.storage.constants.STANDARD_STORAGE_CLASS`,
+            :attr:`~google.cloud.storage.constants.MULTI_REGIONAL_LEGACY_STORAGE_CLASS`,
+            :attr:`~google.cloud.storage.constants.REGIONAL_LEGACY_STORAGE_CLASS`,
+            or
+            :attr:`~google.cloud.storage.constants.DURABLE_REDUCED_AVAILABILITY_LEGACY_STORAGE_CLASS`,
+            else ``None``.
         """
         return self._properties.get("storageClass")
 
@@ -1544,10 +1622,17 @@ class Bucket(_PropertyMixin):
         See https://cloud.google.com/storage/docs/storage-classes
 
         :type value: str
-        :param value: one of "MULTI_REGIONAL", "REGIONAL", "NEARLINE",
-                      "COLDLINE", "STANDARD", or "DURABLE_REDUCED_AVAILABILITY"
+        :param value:
+            One of
+            :attr:`~google.cloud.storage.constants.NEARLINE_STORAGE_CLASS`,
+            :attr:`~google.cloud.storage.constants.COLDLINE_STORAGE_CLASS`,
+            :attr:`~google.cloud.storage.constants.STANDARD_STORAGE_CLASS`,
+            :attr:`~google.cloud.storage.constants.MULTI_REGIONAL_LEGACY_STORAGE_CLASS`,
+            :attr:`~google.cloud.storage.constants.REGIONAL_LEGACY_STORAGE_CLASS`,
+            or
+            :attr:`~google.cloud.storage.constants.DURABLE_REDUCED_AVAILABILITY_LEGACY_STORAGE_CLASS`,
         """
-        if value not in self._STORAGE_CLASSES:
+        if value not in self.STORAGE_CLASSES:
             raise ValueError("Invalid storage class: %s" % (value,))
         self._patch_property("storageClass", value)
 

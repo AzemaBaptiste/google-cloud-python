@@ -79,7 +79,7 @@ def setUpModule():
     # fails with a ConnectionError.
     Config.TEST_BUCKET = Config.CLIENT.bucket(bucket_name)
     Config.TEST_BUCKET.versioning_enabled = True
-    retry_429(Config.TEST_BUCKET.create)()
+    retry_429_503(Config.TEST_BUCKET.create)()
 
 
 def tearDownModule():
@@ -90,6 +90,19 @@ def tearDownModule():
 
 
 class TestClient(unittest.TestCase):
+    def setUp(self):
+        self.case_hmac_keys_to_delete = []
+
+    def tearDown(self):
+        from google.cloud.storage.hmac_key import HMACKeyMetadata
+
+        for hmac_key in self.case_hmac_keys_to_delete:
+            if hmac_key.state == HMACKeyMetadata.ACTIVE_STATE:
+                hmac_key.state = HMACKeyMetadata.INACTIVE_STATE
+                hmac_key.update()
+            if hmac_key.state == HMACKeyMetadata.INACTIVE_STATE:
+                retry_429_harder(hmac_key.delete)()
+
     def test_get_service_account_email(self):
         domain = "gs-project-accounts.iam.gserviceaccount.com"
 
@@ -101,6 +114,42 @@ class TestClient(unittest.TestCase):
         matches = [pattern.match(email) for pattern in patterns]
 
         self.assertTrue(any(match for match in matches if match is not None))
+
+    def test_hmac_key_crud(self):
+        from google.cloud.storage.hmac_key import HMACKeyMetadata
+
+        credentials = Config.CLIENT._credentials
+        email = credentials.service_account_email
+
+        before_keys = set(Config.CLIENT.list_hmac_keys())
+
+        metadata, secret = Config.CLIENT.create_hmac_key(email)
+        self.case_hmac_keys_to_delete.append(metadata)
+
+        self.assertIsInstance(secret, six.text_type)
+        self.assertEqual(len(secret), 40)
+
+        after_keys = set(Config.CLIENT.list_hmac_keys())
+        self.assertFalse(metadata in before_keys)
+        self.assertTrue(metadata in after_keys)
+
+        another = HMACKeyMetadata(Config.CLIENT)
+
+        another._properties["accessId"] = "nonesuch"
+        self.assertFalse(another.exists())
+
+        another._properties["accessId"] = metadata.access_id
+        self.assertTrue(another.exists())
+
+        another.reload()
+
+        self.assertEqual(another._properties, metadata._properties)
+
+        metadata.state = HMACKeyMetadata.INACTIVE_STATE
+        metadata.update()
+
+        metadata.delete()
+        self.case_hmac_keys_to_delete.remove(metadata)
 
 
 class TestStorageBuckets(unittest.TestCase):
@@ -117,7 +166,7 @@ class TestStorageBuckets(unittest.TestCase):
         self.assertRaises(
             exceptions.NotFound, Config.CLIENT.get_bucket, new_bucket_name
         )
-        created = retry_429(Config.CLIENT.create_bucket)(new_bucket_name)
+        created = retry_429_503(Config.CLIENT.create_bucket)(new_bucket_name)
         self.case_buckets_to_delete.append(new_bucket_name)
         self.assertEqual(created.name, new_bucket_name)
 
@@ -139,7 +188,7 @@ class TestStorageBuckets(unittest.TestCase):
             ),
         ]
 
-        retry_429(bucket.create)(location="us")
+        retry_429_503(bucket.create)(location="us")
 
         self.case_buckets_to_delete.append(new_bucket_name)
         self.assertEqual(bucket.name, new_bucket_name)
@@ -159,7 +208,7 @@ class TestStorageBuckets(unittest.TestCase):
         created_buckets = []
         for bucket_name in buckets_to_create:
             bucket = Config.CLIENT.bucket(bucket_name)
-            retry_429(bucket.create)()
+            retry_429_503(bucket.create)()
             self.case_buckets_to_delete.append(bucket_name)
 
         # Retrieve the buckets.
@@ -171,7 +220,7 @@ class TestStorageBuckets(unittest.TestCase):
 
     def test_bucket_update_labels(self):
         bucket_name = "update-labels" + unique_resource_id("-")
-        bucket = retry_429(Config.CLIENT.create_bucket)(bucket_name)
+        bucket = retry_429_503(Config.CLIENT.create_bucket)(bucket_name)
         self.case_buckets_to_delete.append(bucket_name)
         self.assertTrue(bucket.exists())
 
@@ -192,7 +241,7 @@ class TestStorageBuckets(unittest.TestCase):
     @unittest.skipUnless(USER_PROJECT, "USER_PROJECT not set in environment.")
     def test_crud_bucket_with_requester_pays(self):
         new_bucket_name = "w-requester-pays" + unique_resource_id("-")
-        created = retry_429(Config.CLIENT.create_bucket)(
+        created = retry_429_503(Config.CLIENT.create_bucket)(
             new_bucket_name, requester_pays=True
         )
         self.case_buckets_to_delete.append(new_bucket_name)
@@ -235,7 +284,7 @@ class TestStorageBuckets(unittest.TestCase):
     @unittest.skipUnless(USER_PROJECT, "USER_PROJECT not set in environment.")
     def test_bucket_acls_iam_with_user_project(self):
         new_bucket_name = "acl-w-user-project" + unique_resource_id("-")
-        retry_429(Config.CLIENT.create_bucket)(new_bucket_name, requester_pays=True)
+        retry_429_503(Config.CLIENT.create_bucket)(new_bucket_name, requester_pays=True)
         self.case_buckets_to_delete.append(new_bucket_name)
 
         with_user_project = Config.CLIENT.bucket(
@@ -273,7 +322,7 @@ class TestStorageBuckets(unittest.TestCase):
     @unittest.skipUnless(USER_PROJECT, "USER_PROJECT not set in environment.")
     def test_copy_existing_file_with_user_project(self):
         new_bucket_name = "copy-w-requester-pays" + unique_resource_id("-")
-        created = retry_429(Config.CLIENT.create_bucket)(
+        created = retry_429_503(Config.CLIENT.create_bucket)(
             new_bucket_name, requester_pays=True
         )
         self.case_buckets_to_delete.append(new_bucket_name)
@@ -305,7 +354,7 @@ class TestStorageBuckets(unittest.TestCase):
     def test_bucket_get_blob_with_user_project(self):
         new_bucket_name = "w-requester-pays" + unique_resource_id("-")
         data = b"DEADBEEF"
-        created = retry_429(Config.CLIENT.create_bucket)(
+        created = retry_429_503(Config.CLIENT.create_bucket)(
             new_bucket_name, requester_pays=True
         )
         self.case_buckets_to_delete.append(new_bucket_name)
@@ -552,6 +601,23 @@ class TestStorageWriteFiles(TestStorageFiles):
         copied_contents = new_blob.download_as_string()
         self.assertEqual(base_contents, copied_contents)
 
+    def test_download_blob_w_uri(self):
+        blob = self.bucket.blob("MyBuffer")
+        file_contents = b"Hello World"
+        blob.upload_from_string(file_contents)
+        self.case_blobs_to_delete.append(blob)
+
+        temp_filename = tempfile.mktemp()
+        with open(temp_filename, "wb") as file_obj:
+            Config.CLIENT.download_blob_to_file(
+                "gs://" + self.bucket.name + "/MyBuffer", file_obj
+            )
+
+        with open(temp_filename, "rb") as file_obj:
+            stored_contents = file_obj.read()
+
+        self.assertEqual(file_contents, stored_contents)
+
 
 class TestUnicode(unittest.TestCase):
     @unittest.skipIf(RUNNING_IN_VPCSC, "Test is not VPCSC compatible.")
@@ -737,7 +803,7 @@ class TestStorageSignURLs(unittest.TestCase):
             cls.skipTest("Signing tests requires a service account credential")
 
         bucket_name = "gcp-signing" + unique_resource_id()
-        cls.bucket = Config.CLIENT.create_bucket(bucket_name)
+        cls.bucket = retry_429_503(Config.CLIENT.create_bucket)(bucket_name)
         cls.blob = cls.bucket.blob("README.txt")
         cls.blob.upload_from_string(cls.BLOB_CONTENT)
 
@@ -988,7 +1054,7 @@ class TestStorageCompose(TestStorageFiles):
     @unittest.skipUnless(USER_PROJECT, "USER_PROJECT not set in environment.")
     def test_compose_with_user_project(self):
         new_bucket_name = "compose-user-project" + unique_resource_id("-")
-        created = retry_429(Config.CLIENT.create_bucket)(
+        created = retry_429_503(Config.CLIENT.create_bucket)(
             new_bucket_name, requester_pays=True
         )
         try:
@@ -1063,7 +1129,7 @@ class TestStorageRewrite(TestStorageFiles):
     def test_rewrite_add_key_with_user_project(self):
         file_data = self.FILES["simple"]
         new_bucket_name = "rewrite-key-up" + unique_resource_id("-")
-        created = retry_429(Config.CLIENT.create_bucket)(
+        created = retry_429_503(Config.CLIENT.create_bucket)(
             new_bucket_name, requester_pays=True
         )
         try:
@@ -1092,7 +1158,7 @@ class TestStorageRewrite(TestStorageFiles):
         BLOB_NAME = "rotating-keys"
         file_data = self.FILES["simple"]
         new_bucket_name = "rewrite-rotate-up" + unique_resource_id("-")
-        created = retry_429(Config.CLIENT.create_bucket)(
+        created = retry_429_503(Config.CLIENT.create_bucket)(
             new_bucket_name, requester_pays=True
         )
         try:
@@ -1204,7 +1270,7 @@ class TestStorageNotificationCRUD(unittest.TestCase):
 
     def test_notification_minimal(self):
         new_bucket_name = "notification-minimal" + unique_resource_id("-")
-        bucket = retry_429(Config.CLIENT.create_bucket)(new_bucket_name)
+        bucket = retry_429_503(Config.CLIENT.create_bucket)(new_bucket_name)
         self.case_buckets_to_delete.append(new_bucket_name)
         self.assertEqual(list(bucket.list_notifications()), [])
         notification = bucket.notification(self.TOPIC_NAME)
@@ -1220,7 +1286,7 @@ class TestStorageNotificationCRUD(unittest.TestCase):
 
     def test_notification_explicit(self):
         new_bucket_name = "notification-explicit" + unique_resource_id("-")
-        bucket = retry_429(Config.CLIENT.create_bucket)(new_bucket_name)
+        bucket = retry_429_503(Config.CLIENT.create_bucket)(new_bucket_name)
         self.case_buckets_to_delete.append(new_bucket_name)
         notification = bucket.notification(
             self.TOPIC_NAME,
@@ -1243,7 +1309,7 @@ class TestStorageNotificationCRUD(unittest.TestCase):
     @unittest.skipUnless(USER_PROJECT, "USER_PROJECT not set in environment.")
     def test_notification_w_user_project(self):
         new_bucket_name = "notification-minimal" + unique_resource_id("-")
-        retry_429(Config.CLIENT.create_bucket)(new_bucket_name, requester_pays=True)
+        retry_429_503(Config.CLIENT.create_bucket)(new_bucket_name, requester_pays=True)
         self.case_buckets_to_delete.append(new_bucket_name)
         with_user_project = Config.CLIENT.bucket(
             new_bucket_name, user_project=USER_PROJECT
@@ -1269,9 +1335,9 @@ class TestAnonymousClient(unittest.TestCase):
     def test_access_to_public_bucket(self):
         anonymous = storage.Client.create_anonymous_client()
         bucket = anonymous.bucket(self.PUBLIC_BUCKET)
-        blob, = bucket.list_blobs(max_results=1)
+        blob, = retry_429_503(bucket.list_blobs)(max_results=1)
         with tempfile.TemporaryFile() as stream:
-            blob.download_to_file(stream)
+            retry_429_503(blob.download_to_file)(stream)
 
 
 class TestKMSIntegration(TestStorageFiles):
@@ -1465,7 +1531,7 @@ class TestRetentionPolicy(unittest.TestCase):
         period_secs = 10
 
         new_bucket_name = "w-retention-period" + unique_resource_id("-")
-        bucket = retry_429(Config.CLIENT.create_bucket)(new_bucket_name)
+        bucket = retry_429_503(Config.CLIENT.create_bucket)(new_bucket_name)
         self.case_buckets_to_delete.append(new_bucket_name)
 
         bucket.retention_period = period_secs
@@ -1514,7 +1580,7 @@ class TestRetentionPolicy(unittest.TestCase):
         self.assertRaises(
             exceptions.NotFound, Config.CLIENT.get_bucket, new_bucket_name
         )
-        bucket = retry_429(Config.CLIENT.create_bucket)(new_bucket_name)
+        bucket = retry_429_503(Config.CLIENT.create_bucket)(new_bucket_name)
         self.case_buckets_to_delete.append(new_bucket_name)
 
         bucket.default_event_based_hold = True
@@ -1566,7 +1632,7 @@ class TestRetentionPolicy(unittest.TestCase):
         self.assertRaises(
             exceptions.NotFound, Config.CLIENT.get_bucket, new_bucket_name
         )
-        bucket = retry_429(Config.CLIENT.create_bucket)(new_bucket_name)
+        bucket = retry_429_503(Config.CLIENT.create_bucket)(new_bucket_name)
         self.case_buckets_to_delete.append(new_bucket_name)
 
         blob_name = "test-blob"
@@ -1600,7 +1666,7 @@ class TestRetentionPolicy(unittest.TestCase):
         self.assertRaises(
             exceptions.NotFound, Config.CLIENT.get_bucket, new_bucket_name
         )
-        bucket = retry_429(Config.CLIENT.create_bucket)(new_bucket_name)
+        bucket = retry_429_503(Config.CLIENT.create_bucket)(new_bucket_name)
         self.case_buckets_to_delete.append(new_bucket_name)
 
         bucket.retention_period = period_secs
@@ -1637,7 +1703,7 @@ class TestIAMConfiguration(unittest.TestCase):
         )
         bucket = Config.CLIENT.bucket(new_bucket_name)
         bucket.iam_configuration.bucket_policy_only_enabled = True
-        retry_429(bucket.create)()
+        retry_429_503(bucket.create)()
         self.case_buckets_to_delete.append(new_bucket_name)
 
         bucket_acl = bucket.acl
@@ -1666,12 +1732,13 @@ class TestIAMConfiguration(unittest.TestCase):
         with self.assertRaises(exceptions.BadRequest):
             blob_acl.save()
 
+    @unittest.skipUnless(False, "Back-end fix for BPO/UBLA expected 2019-07-12")
     def test_bpo_set_unset_preserves_acls(self):
         new_bucket_name = "bpo-acls" + unique_resource_id("-")
         self.assertRaises(
             exceptions.NotFound, Config.CLIENT.get_bucket, new_bucket_name
         )
-        bucket = retry_429(Config.CLIENT.create_bucket)(new_bucket_name)
+        bucket = retry_429_503(Config.CLIENT.create_bucket)(new_bucket_name)
         self.case_buckets_to_delete.append(new_bucket_name)
 
         blob_name = "my-blob.txt"
@@ -1686,6 +1753,8 @@ class TestIAMConfiguration(unittest.TestCase):
         # Set BPO
         bucket.iam_configuration.bucket_policy_only_enabled = True
         bucket.patch()
+
+        self.assertTrue(bucket.iam_configuration.bucket_policy_only_enabled)
 
         # While BPO is set, cannot get / set ACLs
         with self.assertRaises(exceptions.BadRequest):

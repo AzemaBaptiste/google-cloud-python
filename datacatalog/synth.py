@@ -30,6 +30,7 @@ library = gapic.py_library(
     config_path='/google/cloud/datacatalog/artman_datacatalog_v1beta1.yaml',
     artman_output_name='datacatalog-v1beta1',
     include_protos=True,
+    generator_args=["--dev_samples"],
 )
 
 s.move(
@@ -43,6 +44,14 @@ s.move(
         'setup.py',
         'setup.cfg',
     ],
+)
+
+# Fix docstring issue for classes with no summary line
+s.replace(
+    "google/cloud/**/proto/*_pb2.py",
+    '''__doc__ = """Attributes:''',
+    '''__doc__ = """
+    Attributes:''',
 )
 
 # ----------------------------------------------------------------------------

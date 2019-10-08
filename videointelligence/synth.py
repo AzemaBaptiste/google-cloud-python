@@ -20,7 +20,7 @@ from synthtool import gcp
 
 gapic = gcp.GAPICGenerator()
 common = gcp.CommonTemplates()
-versions = ["v1beta1", "v1beta2", "v1p1beta1", "v1p2beta1", "v1p3beta1", "v1"]
+versions = ["v1beta2", "v1p1beta1", "v1p2beta1", "v1p3beta1", "v1"]
 
 
 # ----------------------------------------------------------------------------
@@ -66,6 +66,6 @@ s.replace(
 # Add templated files
 # ----------------------------------------------------------------------------
 templated_files = common.py_library(unit_cov_level=97, cov_level=100)
-s.move(templated_files)
+s.move(templated_files, excludes="noxfile.py")
 
 s.shell.run(["nox", "-s", "blacken"], hide_output=False)

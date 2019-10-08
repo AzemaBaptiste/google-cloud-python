@@ -16,6 +16,7 @@ import datetime
 import unittest
 
 import mock
+import pytest
 
 
 def _create_signing_credentials():
@@ -46,13 +47,13 @@ class Test_LifecycleRuleConditions(unittest.TestCase):
             self._make_one()
 
     def test_ctor_w_age_and_matches_storage_class(self):
-        conditions = self._make_one(age=10, matches_storage_class=["REGIONAL"])
-        expected = {"age": 10, "matchesStorageClass": ["REGIONAL"]}
+        conditions = self._make_one(age=10, matches_storage_class=["COLDLINE"])
+        expected = {"age": 10, "matchesStorageClass": ["COLDLINE"]}
         self.assertEqual(dict(conditions), expected)
         self.assertEqual(conditions.age, 10)
         self.assertIsNone(conditions.created_before)
         self.assertIsNone(conditions.is_live)
-        self.assertEqual(conditions.matches_storage_class, ["REGIONAL"])
+        self.assertEqual(conditions.matches_storage_class, ["COLDLINE"])
         self.assertIsNone(conditions.number_of_newer_versions)
 
     def test_ctor_w_created_before_and_is_live(self):
@@ -87,14 +88,14 @@ class Test_LifecycleRuleConditions(unittest.TestCase):
             "age": 10,
             "createdBefore": "2018-08-01",
             "isLive": True,
-            "matchesStorageClass": ["REGIONAL"],
+            "matchesStorageClass": ["COLDLINE"],
             "numNewerVersions": 3,
         }
         conditions = klass.from_api_repr(resource)
         self.assertEqual(conditions.age, 10)
         self.assertEqual(conditions.created_before, before)
         self.assertEqual(conditions.is_live, True)
-        self.assertEqual(conditions.matches_storage_class, ["REGIONAL"])
+        self.assertEqual(conditions.matches_storage_class, ["COLDLINE"])
         self.assertEqual(conditions.number_of_newer_versions, 3)
 
 
@@ -113,10 +114,10 @@ class Test_LifecycleRuleDelete(unittest.TestCase):
             self._make_one()
 
     def test_ctor_w_condition(self):
-        rule = self._make_one(age=10, matches_storage_class=["REGIONAL"])
+        rule = self._make_one(age=10, matches_storage_class=["COLDLINE"])
         expected = {
             "action": {"type": "Delete"},
-            "condition": {"age": 10, "matchesStorageClass": ["REGIONAL"]},
+            "condition": {"age": 10, "matchesStorageClass": ["COLDLINE"]},
         }
         self.assertEqual(dict(rule), expected)
 
@@ -126,7 +127,7 @@ class Test_LifecycleRuleDelete(unittest.TestCase):
             "age": 10,
             "createdBefore": "2018-08-01",
             "isLive": True,
-            "matchesStorageClass": ["REGIONAL"],
+            "matchesStorageClass": ["COLDLINE"],
             "numNewerVersions": 3,
         }
         resource = {"action": {"type": "Delete"}, "condition": conditions}
@@ -146,15 +147,15 @@ class Test_LifecycleRuleSetStorageClass(unittest.TestCase):
 
     def test_ctor_wo_conditions(self):
         with self.assertRaises(ValueError):
-            self._make_one(storage_class="REGIONAL")
+            self._make_one(storage_class="COLDLINE")
 
     def test_ctor_w_condition(self):
         rule = self._make_one(
-            storage_class="NEARLINE", age=10, matches_storage_class=["REGIONAL"]
+            storage_class="COLDLINE", age=10, matches_storage_class=["NEARLINE"]
         )
         expected = {
-            "action": {"type": "SetStorageClass", "storageClass": "NEARLINE"},
-            "condition": {"age": 10, "matchesStorageClass": ["REGIONAL"]},
+            "action": {"type": "SetStorageClass", "storageClass": "COLDLINE"},
+            "condition": {"age": 10, "matchesStorageClass": ["NEARLINE"]},
         }
         self.assertEqual(dict(rule), expected)
 
@@ -164,11 +165,11 @@ class Test_LifecycleRuleSetStorageClass(unittest.TestCase):
             "age": 10,
             "createdBefore": "2018-08-01",
             "isLive": True,
-            "matchesStorageClass": ["REGIONAL"],
+            "matchesStorageClass": ["NEARLINE"],
             "numNewerVersions": 3,
         }
         resource = {
-            "action": {"type": "SetStorageClass", "storageClass": "NEARLINE"},
+            "action": {"type": "SetStorageClass", "storageClass": "COLDLINE"},
             "condition": conditions,
         }
         rule = klass.from_api_repr(resource)
@@ -299,16 +300,23 @@ class Test_Bucket(unittest.TestCase):
         bucket._properties = properties or {}
         return bucket
 
+    def test_ctor_w_invalid_name(self):
+        NAME = "#invalid"
+        with self.assertRaises(ValueError):
+            self._make_one(name=NAME)
+
     def test_ctor(self):
         NAME = "name"
         properties = {"key": "value"}
         bucket = self._make_one(name=NAME, properties=properties)
         self.assertEqual(bucket.name, NAME)
         self.assertEqual(bucket._properties, properties)
+        self.assertEqual(list(bucket._changes), [])
         self.assertFalse(bucket._acl.loaded)
         self.assertIs(bucket._acl.bucket, bucket)
         self.assertFalse(bucket._default_object_acl.loaded)
         self.assertIs(bucket._default_object_acl.bucket, bucket)
+        self.assertEqual(list(bucket._label_removals), [])
         self.assertIsNone(bucket.user_project)
 
     def test_ctor_w_user_project(self):
@@ -319,11 +327,13 @@ class Test_Bucket(unittest.TestCase):
         bucket = self._make_one(client, name=NAME, user_project=USER_PROJECT)
         self.assertEqual(bucket.name, NAME)
         self.assertEqual(bucket._properties, {})
-        self.assertEqual(bucket.user_project, USER_PROJECT)
+        self.assertEqual(list(bucket._changes), [])
         self.assertFalse(bucket._acl.loaded)
         self.assertIs(bucket._acl.bucket, bucket)
         self.assertFalse(bucket._default_object_acl.loaded)
         self.assertIs(bucket._default_object_acl.bucket, bucket)
+        self.assertEqual(list(bucket._label_removals), [])
+        self.assertEqual(bucket.user_project, USER_PROJECT)
 
     def test_blob_wo_keys(self):
         from google.cloud.storage.blob import Blob
@@ -781,19 +791,6 @@ class Test_Bucket(unittest.TestCase):
         self.assertEqual(kw["method"], "GET")
         self.assertEqual(kw["path"], "/b/%s/o" % NAME)
         self.assertEqual(kw["query_params"], EXPECTED)
-
-    def test_list_blobs(self):
-        NAME = "name"
-        connection = _Connection({"items": []})
-        client = _Client(connection)
-        bucket = self._make_one(client=client, name=NAME)
-        iterator = bucket.list_blobs()
-        blobs = list(iterator)
-        self.assertEqual(blobs, [])
-        kw, = connection._requested
-        self.assertEqual(kw["method"], "GET")
-        self.assertEqual(kw["path"], "/b/%s/o" % NAME)
-        self.assertEqual(kw["query_params"], {"projection": "noAcl"})
 
     def test_list_notifications(self):
         from google.cloud.storage.notification import BucketNotification
@@ -1509,6 +1506,17 @@ class Test_Bucket(unittest.TestCase):
         _, _, kwargs = client._connection.api_request.mock_calls[0]
         self.assertNotIn("labels", kwargs["data"])
 
+    def test_location_type_getter_unset(self):
+        bucket = self._make_one()
+        self.assertIsNone(bucket.location_type)
+
+    def test_location_type_getter_set(self):
+        from google.cloud.storage.constants import REGION_LOCATION_TYPE
+
+        properties = {"locationType": REGION_LOCATION_TYPE}
+        bucket = self._make_one(properties=properties)
+        self.assertEqual(bucket.location_type, REGION_LOCATION_TYPE)
+
     def test_get_logging_w_prefix(self):
         NAME = "name"
         LOG_BUCKET = "logs"
@@ -1671,10 +1679,11 @@ class Test_Bucket(unittest.TestCase):
         self.assertEqual(bucket.self_link, SELF_LINK)
 
     def test_storage_class_getter(self):
-        STORAGE_CLASS = "http://example.com/self/"
-        properties = {"storageClass": STORAGE_CLASS}
+        from google.cloud.storage.constants import NEARLINE_STORAGE_CLASS
+
+        properties = {"storageClass": NEARLINE_STORAGE_CLASS}
         bucket = self._make_one(properties=properties)
-        self.assertEqual(bucket.storage_class, STORAGE_CLASS)
+        self.assertEqual(bucket.storage_class, NEARLINE_STORAGE_CLASS)
 
     def test_storage_class_setter_invalid(self):
         NAME = "name"
@@ -1684,45 +1693,61 @@ class Test_Bucket(unittest.TestCase):
         self.assertFalse("storageClass" in bucket._changes)
 
     def test_storage_class_setter_STANDARD(self):
+        from google.cloud.storage.constants import STANDARD_STORAGE_CLASS
+
         NAME = "name"
         bucket = self._make_one(name=NAME)
-        bucket.storage_class = "STANDARD"
-        self.assertEqual(bucket.storage_class, "STANDARD")
+        bucket.storage_class = STANDARD_STORAGE_CLASS
+        self.assertEqual(bucket.storage_class, STANDARD_STORAGE_CLASS)
         self.assertTrue("storageClass" in bucket._changes)
 
     def test_storage_class_setter_NEARLINE(self):
+        from google.cloud.storage.constants import NEARLINE_STORAGE_CLASS
+
         NAME = "name"
         bucket = self._make_one(name=NAME)
-        bucket.storage_class = "NEARLINE"
-        self.assertEqual(bucket.storage_class, "NEARLINE")
+        bucket.storage_class = NEARLINE_STORAGE_CLASS
+        self.assertEqual(bucket.storage_class, NEARLINE_STORAGE_CLASS)
         self.assertTrue("storageClass" in bucket._changes)
 
     def test_storage_class_setter_COLDLINE(self):
+        from google.cloud.storage.constants import COLDLINE_STORAGE_CLASS
+
         NAME = "name"
         bucket = self._make_one(name=NAME)
-        bucket.storage_class = "COLDLINE"
-        self.assertEqual(bucket.storage_class, "COLDLINE")
+        bucket.storage_class = COLDLINE_STORAGE_CLASS
+        self.assertEqual(bucket.storage_class, COLDLINE_STORAGE_CLASS)
         self.assertTrue("storageClass" in bucket._changes)
 
     def test_storage_class_setter_MULTI_REGIONAL(self):
+        from google.cloud.storage.constants import MULTI_REGIONAL_LEGACY_STORAGE_CLASS
+
         NAME = "name"
         bucket = self._make_one(name=NAME)
-        bucket.storage_class = "MULTI_REGIONAL"
-        self.assertEqual(bucket.storage_class, "MULTI_REGIONAL")
+        bucket.storage_class = MULTI_REGIONAL_LEGACY_STORAGE_CLASS
+        self.assertEqual(bucket.storage_class, MULTI_REGIONAL_LEGACY_STORAGE_CLASS)
         self.assertTrue("storageClass" in bucket._changes)
 
     def test_storage_class_setter_REGIONAL(self):
+        from google.cloud.storage.constants import REGIONAL_LEGACY_STORAGE_CLASS
+
         NAME = "name"
         bucket = self._make_one(name=NAME)
-        bucket.storage_class = "REGIONAL"
-        self.assertEqual(bucket.storage_class, "REGIONAL")
+        bucket.storage_class = REGIONAL_LEGACY_STORAGE_CLASS
+        self.assertEqual(bucket.storage_class, REGIONAL_LEGACY_STORAGE_CLASS)
         self.assertTrue("storageClass" in bucket._changes)
 
     def test_storage_class_setter_DURABLE_REDUCED_AVAILABILITY(self):
+        from google.cloud.storage.constants import (
+            DURABLE_REDUCED_AVAILABILITY_LEGACY_STORAGE_CLASS,
+        )
+
         NAME = "name"
         bucket = self._make_one(name=NAME)
-        bucket.storage_class = "DURABLE_REDUCED_AVAILABILITY"
-        self.assertEqual(bucket.storage_class, "DURABLE_REDUCED_AVAILABILITY")
+        bucket.storage_class = DURABLE_REDUCED_AVAILABILITY_LEGACY_STORAGE_CLASS
+        self.assertEqual(
+            bucket.storage_class, DURABLE_REDUCED_AVAILABILITY_LEGACY_STORAGE_CLASS
+        )
         self.assertTrue("storageClass" in bucket._changes)
 
     def test_time_created(self):
@@ -2650,6 +2675,39 @@ class Test_Bucket(unittest.TestCase):
             "query_parameters": query_parameters,
         }
         signer.assert_called_once_with(expected_creds, **expected_kwargs)
+
+    def test_get_bucket_from_string_w_valid_uri(self):
+        from google.cloud.storage.bucket import Bucket
+
+        connection = _Connection()
+        client = _Client(connection)
+        BUCKET_NAME = "BUCKET_NAME"
+        uri = "gs://" + BUCKET_NAME
+        bucket = Bucket.from_string(uri, client)
+        self.assertIsInstance(bucket, Bucket)
+        self.assertIs(bucket.client, client)
+        self.assertEqual(bucket.name, BUCKET_NAME)
+
+    def test_get_bucket_from_string_w_invalid_uri(self):
+        from google.cloud.storage.bucket import Bucket
+
+        connection = _Connection()
+        client = _Client(connection)
+
+        with pytest.raises(ValueError, match="URI scheme must be gs"):
+            Bucket.from_string("http://bucket_name", client)
+
+    def test_get_bucket_from_string_w_domain_name_bucket(self):
+        from google.cloud.storage.bucket import Bucket
+
+        connection = _Connection()
+        client = _Client(connection)
+        BUCKET_NAME = "buckets.example.com"
+        uri = "gs://" + BUCKET_NAME
+        bucket = Bucket.from_string(uri, client)
+        self.assertIsInstance(bucket, Bucket)
+        self.assertIs(bucket.client, client)
+        self.assertEqual(bucket.name, BUCKET_NAME)
 
     def test_generate_signed_url_no_version_passed_warning(self):
         self._generate_signed_url_helper()

@@ -21,6 +21,7 @@ import pkg_resources
 import warnings
 
 from google.oauth2 import service_account
+import google.api_core.client_options
 import google.api_core.gapic_v1.client_info
 import google.api_core.gapic_v1.config
 import google.api_core.gapic_v1.method
@@ -30,6 +31,7 @@ import google.api_core.operation
 from google.api_core import operations_v1
 import google.api_core.page_iterator
 import google.api_core.path_template
+import google.api_core.protobuf_helpers
 import grpc
 
 from google.cloud.vision_v1.gapic import enums
@@ -139,6 +141,7 @@ class ProductSearchClient(object):
         credentials=None,
         client_config=None,
         client_info=None,
+        client_options=None,
     ):
         """Constructor.
 
@@ -169,6 +172,9 @@ class ProductSearchClient(object):
                 API requests. If ``None``, then default info will be used.
                 Generally, you only need to set this if you're developing
                 your own client library.
+            client_options (Union[dict, google.api_core.client_options.ClientOptions]):
+                Client options used to set user options on the client. API Endpoint
+                should be set through client_options.
         """
         # Raise deprecation warnings for things we want to go away.
         if client_config is not None:
@@ -187,6 +193,15 @@ class ProductSearchClient(object):
                 stacklevel=2,
             )
 
+        api_endpoint = self.SERVICE_ADDRESS
+        if client_options:
+            if type(client_options) == dict:
+                client_options = google.api_core.client_options.from_dict(
+                    client_options
+                )
+            if client_options.api_endpoint:
+                api_endpoint = client_options.api_endpoint
+
         # Instantiate the transport.
         # The transport is responsible for handling serialization and
         # deserialization and actually sending data to the service.
@@ -195,6 +210,7 @@ class ProductSearchClient(object):
                 self.transport = transport(
                     credentials=credentials,
                     default_class=product_search_grpc_transport.ProductSearchGrpcTransport,
+                    address=api_endpoint,
                 )
             else:
                 if credentials:
@@ -205,7 +221,7 @@ class ProductSearchClient(object):
                 self.transport = transport
         else:
             self.transport = product_search_grpc_transport.ProductSearchGrpcTransport(
-                address=self.SERVICE_ADDRESS, channel=channel, credentials=credentials
+                address=api_endpoint, channel=channel, credentials=credentials
             )
 
         if client_info is None:
@@ -261,10 +277,10 @@ class ProductSearchClient(object):
             >>> response = client.create_product_set(parent, product_set)
 
         Args:
-            parent (str): The project in which the ProductSet should be created.
+            parent (str): Required. The project in which the ProductSet should be created.
 
                 Format is ``projects/PROJECT_ID/locations/LOC_ID``.
-            product_set (Union[dict, ~google.cloud.vision_v1.types.ProductSet]): The ProductSet to create.
+            product_set (Union[dict, ~google.cloud.vision_v1.types.ProductSet]): Required. The ProductSet to create.
 
                 If a dict is provided, it must be of the same form as the protobuf
                 message :class:`~google.cloud.vision_v1.types.ProductSet`
@@ -273,8 +289,8 @@ class ProductSearchClient(object):
                 an error is returned with code ALREADY\_EXISTS. Must be at most 128
                 characters long. It cannot contain the character ``/``.
             retry (Optional[google.api_core.retry.Retry]):  A retry object used
-                to retry requests. If ``None`` is specified, requests will not
-                be retried.
+                to retry requests. If ``None`` is specified, requests will
+                be retried using a default configuration.
             timeout (Optional[float]): The amount of time, in seconds, to wait
                 for the request to complete. Note that if ``retry`` is
                 specified, the timeout applies to each individual attempt.
@@ -360,7 +376,7 @@ class ProductSearchClient(object):
             ...         pass
 
         Args:
-            parent (str): The project from which ProductSets should be listed.
+            parent (str): Required. The project from which ProductSets should be listed.
 
                 Format is ``projects/PROJECT_ID/locations/LOC_ID``.
             page_size (int): The maximum number of resources contained in the
@@ -369,8 +385,8 @@ class ProductSearchClient(object):
                 streaming is performed per-page, this determines the maximum number
                 of resources in a page.
             retry (Optional[google.api_core.retry.Retry]):  A retry object used
-                to retry requests. If ``None`` is specified, requests will not
-                be retried.
+                to retry requests. If ``None`` is specified, requests will
+                be retried using a default configuration.
             timeout (Optional[float]): The amount of time, in seconds, to wait
                 for the request to complete. Note that if ``retry`` is
                 specified, the timeout applies to each individual attempt.
@@ -378,10 +394,10 @@ class ProductSearchClient(object):
                 that is provided to the method.
 
         Returns:
-            A :class:`~google.gax.PageIterator` instance. By default, this
-            is an iterable of :class:`~google.cloud.vision_v1.types.ProductSet` instances.
-            This object can also be configured to iterate over the pages
-            of the response through the `options` parameter.
+            A :class:`~google.api_core.page_iterator.PageIterator` instance.
+            An iterable of :class:`~google.cloud.vision_v1.types.ProductSet` instances.
+            You can also iterate over the pages of the response
+            using its `pages` property.
 
         Raises:
             google.api_core.exceptions.GoogleAPICallError: If the request
@@ -456,13 +472,13 @@ class ProductSearchClient(object):
             >>> response = client.get_product_set(name)
 
         Args:
-            name (str): Resource name of the ProductSet to get.
+            name (str): Required. Resource name of the ProductSet to get.
 
                 Format is:
                 ``projects/PROJECT_ID/locations/LOG_ID/productSets/PRODUCT_SET_ID``
             retry (Optional[google.api_core.retry.Retry]):  A retry object used
-                to retry requests. If ``None`` is specified, requests will not
-                be retried.
+                to retry requests. If ``None`` is specified, requests will
+                be retried using a default configuration.
             timeout (Optional[float]): The amount of time, in seconds, to wait
                 for the request to complete. Note that if ``retry`` is
                 specified, the timeout applies to each individual attempt.
@@ -537,7 +553,7 @@ class ProductSearchClient(object):
             >>> response = client.update_product_set(product_set)
 
         Args:
-            product_set (Union[dict, ~google.cloud.vision_v1.types.ProductSet]): The ProductSet resource which replaces the one on the server.
+            product_set (Union[dict, ~google.cloud.vision_v1.types.ProductSet]): Required. The ProductSet resource which replaces the one on the server.
 
                 If a dict is provided, it must be of the same form as the protobuf
                 message :class:`~google.cloud.vision_v1.types.ProductSet`
@@ -548,8 +564,8 @@ class ProductSearchClient(object):
                 If a dict is provided, it must be of the same form as the protobuf
                 message :class:`~google.cloud.vision_v1.types.FieldMask`
             retry (Optional[google.api_core.retry.Retry]):  A retry object used
-                to retry requests. If ``None`` is specified, requests will not
-                be retried.
+                to retry requests. If ``None`` is specified, requests will
+                be retried using a default configuration.
             timeout (Optional[float]): The amount of time, in seconds, to wait
                 for the request to complete. Note that if ``retry`` is
                 specified, the timeout applies to each individual attempt.
@@ -620,13 +636,13 @@ class ProductSearchClient(object):
             >>> client.delete_product_set(name)
 
         Args:
-            name (str): Resource name of the ProductSet to delete.
+            name (str): Required. Resource name of the ProductSet to delete.
 
                 Format is:
                 ``projects/PROJECT_ID/locations/LOC_ID/productSets/PRODUCT_SET_ID``
             retry (Optional[google.api_core.retry.Retry]):  A retry object used
-                to retry requests. If ``None`` is specified, requests will not
-                be retried.
+                to retry requests. If ``None`` is specified, requests will
+                be retried using a default configuration.
             timeout (Optional[float]): The amount of time, in seconds, to wait
                 for the request to complete. Note that if ``retry`` is
                 specified, the timeout applies to each individual attempt.
@@ -702,10 +718,10 @@ class ProductSearchClient(object):
             >>> response = client.create_product(parent, product)
 
         Args:
-            parent (str): The project in which the Product should be created.
+            parent (str): Required. The project in which the Product should be created.
 
                 Format is ``projects/PROJECT_ID/locations/LOC_ID``.
-            product (Union[dict, ~google.cloud.vision_v1.types.Product]): The product to create.
+            product (Union[dict, ~google.cloud.vision_v1.types.Product]): Required. The product to create.
 
                 If a dict is provided, it must be of the same form as the protobuf
                 message :class:`~google.cloud.vision_v1.types.Product`
@@ -714,8 +730,8 @@ class ProductSearchClient(object):
                 an error is returned with code ALREADY\_EXISTS. Must be at most 128
                 characters long. It cannot contain the character ``/``.
             retry (Optional[google.api_core.retry.Retry]):  A retry object used
-                to retry requests. If ``None`` is specified, requests will not
-                be retried.
+                to retry requests. If ``None`` is specified, requests will
+                be retried using a default configuration.
             timeout (Optional[float]): The amount of time, in seconds, to wait
                 for the request to complete. Note that if ``retry`` is
                 specified, the timeout applies to each individual attempt.
@@ -801,7 +817,8 @@ class ProductSearchClient(object):
             ...         pass
 
         Args:
-            parent (str): The project OR ProductSet from which Products should be listed.
+            parent (str): Required. The project OR ProductSet from which Products should be
+                listed.
 
                 Format: ``projects/PROJECT_ID/locations/LOC_ID``
             page_size (int): The maximum number of resources contained in the
@@ -810,8 +827,8 @@ class ProductSearchClient(object):
                 streaming is performed per-page, this determines the maximum number
                 of resources in a page.
             retry (Optional[google.api_core.retry.Retry]):  A retry object used
-                to retry requests. If ``None`` is specified, requests will not
-                be retried.
+                to retry requests. If ``None`` is specified, requests will
+                be retried using a default configuration.
             timeout (Optional[float]): The amount of time, in seconds, to wait
                 for the request to complete. Note that if ``retry`` is
                 specified, the timeout applies to each individual attempt.
@@ -819,10 +836,10 @@ class ProductSearchClient(object):
                 that is provided to the method.
 
         Returns:
-            A :class:`~google.gax.PageIterator` instance. By default, this
-            is an iterable of :class:`~google.cloud.vision_v1.types.Product` instances.
-            This object can also be configured to iterate over the pages
-            of the response through the `options` parameter.
+            A :class:`~google.api_core.page_iterator.PageIterator` instance.
+            An iterable of :class:`~google.cloud.vision_v1.types.Product` instances.
+            You can also iterate over the pages of the response
+            using its `pages` property.
 
         Raises:
             google.api_core.exceptions.GoogleAPICallError: If the request
@@ -897,12 +914,12 @@ class ProductSearchClient(object):
             >>> response = client.get_product(name)
 
         Args:
-            name (str): Resource name of the Product to get.
+            name (str): Required. Resource name of the Product to get.
 
                 Format is: ``projects/PROJECT_ID/locations/LOC_ID/products/PRODUCT_ID``
             retry (Optional[google.api_core.retry.Retry]):  A retry object used
-                to retry requests. If ``None`` is specified, requests will not
-                be retried.
+                to retry requests. If ``None`` is specified, requests will
+                be retried using a default configuration.
             timeout (Optional[float]): The amount of time, in seconds, to wait
                 for the request to complete. Note that if ``retry`` is
                 specified, the timeout applies to each individual attempt.
@@ -984,7 +1001,7 @@ class ProductSearchClient(object):
             >>> response = client.update_product(product)
 
         Args:
-            product (Union[dict, ~google.cloud.vision_v1.types.Product]): The Product resource which replaces the one on the server.
+            product (Union[dict, ~google.cloud.vision_v1.types.Product]): Required. The Product resource which replaces the one on the server.
                 product.name is immutable.
 
                 If a dict is provided, it must be of the same form as the protobuf
@@ -996,8 +1013,8 @@ class ProductSearchClient(object):
                 If a dict is provided, it must be of the same form as the protobuf
                 message :class:`~google.cloud.vision_v1.types.FieldMask`
             retry (Optional[google.api_core.retry.Retry]):  A retry object used
-                to retry requests. If ``None`` is specified, requests will not
-                be retried.
+                to retry requests. If ``None`` is specified, requests will
+                be retried using a default configuration.
             timeout (Optional[float]): The amount of time, in seconds, to wait
                 for the request to complete. Note that if ``retry`` is
                 specified, the timeout applies to each individual attempt.
@@ -1069,12 +1086,12 @@ class ProductSearchClient(object):
             >>> client.delete_product(name)
 
         Args:
-            name (str): Resource name of product to delete.
+            name (str): Required. Resource name of product to delete.
 
                 Format is: ``projects/PROJECT_ID/locations/LOC_ID/products/PRODUCT_ID``
             retry (Optional[google.api_core.retry.Retry]):  A retry object used
-                to retry requests. If ``None`` is specified, requests will not
-                be retried.
+                to retry requests. If ``None`` is specified, requests will
+                be retried using a default configuration.
             timeout (Optional[float]): The amount of time, in seconds, to wait
                 for the request to complete. Note that if ``retry`` is
                 specified, the timeout applies to each individual attempt.
@@ -1162,10 +1179,11 @@ class ProductSearchClient(object):
             >>> response = client.create_reference_image(parent, reference_image)
 
         Args:
-            parent (str): Resource name of the product in which to create the reference image.
+            parent (str): Required. Resource name of the product in which to create the reference
+                image.
 
                 Format is ``projects/PROJECT_ID/locations/LOC_ID/products/PRODUCT_ID``.
-            reference_image (Union[dict, ~google.cloud.vision_v1.types.ReferenceImage]): The reference image to create.
+            reference_image (Union[dict, ~google.cloud.vision_v1.types.ReferenceImage]): Required. The reference image to create.
                 If an image ID is specified, it is ignored.
 
                 If a dict is provided, it must be of the same form as the protobuf
@@ -1175,8 +1193,8 @@ class ProductSearchClient(object):
                 already in use, an error is returned with code ALREADY\_EXISTS. Must be
                 at most 128 characters long. It cannot contain the character ``/``.
             retry (Optional[google.api_core.retry.Retry]):  A retry object used
-                to retry requests. If ``None`` is specified, requests will not
-                be retried.
+                to retry requests. If ``None`` is specified, requests will
+                be retried using a default configuration.
             timeout (Optional[float]): The amount of time, in seconds, to wait
                 for the request to complete. Note that if ``retry`` is
                 specified, the timeout applies to each individual attempt.
@@ -1252,14 +1270,14 @@ class ProductSearchClient(object):
             >>> client.delete_reference_image(name)
 
         Args:
-            name (str): The resource name of the reference image to delete.
+            name (str): Required. The resource name of the reference image to delete.
 
                 Format is:
 
                 ``projects/PROJECT_ID/locations/LOC_ID/products/PRODUCT_ID/referenceImages/IMAGE_ID``
             retry (Optional[google.api_core.retry.Retry]):  A retry object used
-                to retry requests. If ``None`` is specified, requests will not
-                be retried.
+                to retry requests. If ``None`` is specified, requests will
+                be retried using a default configuration.
             timeout (Optional[float]): The amount of time, in seconds, to wait
                 for the request to complete. Note that if ``retry`` is
                 specified, the timeout applies to each individual attempt.
@@ -1341,7 +1359,7 @@ class ProductSearchClient(object):
             ...         pass
 
         Args:
-            parent (str): Resource name of the product containing the reference images.
+            parent (str): Required. Resource name of the product containing the reference images.
 
                 Format is ``projects/PROJECT_ID/locations/LOC_ID/products/PRODUCT_ID``.
             page_size (int): The maximum number of resources contained in the
@@ -1350,8 +1368,8 @@ class ProductSearchClient(object):
                 streaming is performed per-page, this determines the maximum number
                 of resources in a page.
             retry (Optional[google.api_core.retry.Retry]):  A retry object used
-                to retry requests. If ``None`` is specified, requests will not
-                be retried.
+                to retry requests. If ``None`` is specified, requests will
+                be retried using a default configuration.
             timeout (Optional[float]): The amount of time, in seconds, to wait
                 for the request to complete. Note that if ``retry`` is
                 specified, the timeout applies to each individual attempt.
@@ -1359,10 +1377,10 @@ class ProductSearchClient(object):
                 that is provided to the method.
 
         Returns:
-            A :class:`~google.gax.PageIterator` instance. By default, this
-            is an iterable of :class:`~google.cloud.vision_v1.types.ReferenceImage` instances.
-            This object can also be configured to iterate over the pages
-            of the response through the `options` parameter.
+            A :class:`~google.api_core.page_iterator.PageIterator` instance.
+            An iterable of :class:`~google.cloud.vision_v1.types.ReferenceImage` instances.
+            You can also iterate over the pages of the response
+            using its `pages` property.
 
         Raises:
             google.api_core.exceptions.GoogleAPICallError: If the request
@@ -1437,14 +1455,14 @@ class ProductSearchClient(object):
             >>> response = client.get_reference_image(name)
 
         Args:
-            name (str): The resource name of the ReferenceImage to get.
+            name (str): Required. The resource name of the ReferenceImage to get.
 
                 Format is:
 
                 ``projects/PROJECT_ID/locations/LOC_ID/products/PRODUCT_ID/referenceImages/IMAGE_ID``.
             retry (Optional[google.api_core.retry.Retry]):  A retry object used
-                to retry requests. If ``None`` is specified, requests will not
-                be retried.
+                to retry requests. If ``None`` is specified, requests will
+                be retried using a default configuration.
             timeout (Optional[float]): The amount of time, in seconds, to wait
                 for the request to complete. Note that if ``retry`` is
                 specified, the timeout applies to each individual attempt.
@@ -1519,16 +1537,17 @@ class ProductSearchClient(object):
             >>> client.add_product_to_product_set(name, product)
 
         Args:
-            name (str): The resource name for the ProductSet to modify.
+            name (str): Required. The resource name for the ProductSet to modify.
 
                 Format is:
                 ``projects/PROJECT_ID/locations/LOC_ID/productSets/PRODUCT_SET_ID``
-            product (str): The resource name for the Product to be added to this ProductSet.
+            product (str): Required. The resource name for the Product to be added to this
+                ProductSet.
 
                 Format is: ``projects/PROJECT_ID/locations/LOC_ID/products/PRODUCT_ID``
             retry (Optional[google.api_core.retry.Retry]):  A retry object used
-                to retry requests. If ``None`` is specified, requests will not
-                be retried.
+                to retry requests. If ``None`` is specified, requests will
+                be retried using a default configuration.
             timeout (Optional[float]): The amount of time, in seconds, to wait
                 for the request to complete. Note that if ``retry`` is
                 specified, the timeout applies to each individual attempt.
@@ -1595,16 +1614,17 @@ class ProductSearchClient(object):
             >>> client.remove_product_from_product_set(name, product)
 
         Args:
-            name (str): The resource name for the ProductSet to modify.
+            name (str): Required. The resource name for the ProductSet to modify.
 
                 Format is:
                 ``projects/PROJECT_ID/locations/LOC_ID/productSets/PRODUCT_SET_ID``
-            product (str): The resource name for the Product to be removed from this ProductSet.
+            product (str): Required. The resource name for the Product to be removed from this
+                ProductSet.
 
                 Format is: ``projects/PROJECT_ID/locations/LOC_ID/products/PRODUCT_ID``
             retry (Optional[google.api_core.retry.Retry]):  A retry object used
-                to retry requests. If ``None`` is specified, requests will not
-                be retried.
+                to retry requests. If ``None`` is specified, requests will
+                be retried using a default configuration.
             timeout (Optional[float]): The amount of time, in seconds, to wait
                 for the request to complete. Note that if ``retry`` is
                 specified, the timeout applies to each individual attempt.
@@ -1691,7 +1711,7 @@ class ProductSearchClient(object):
             ...         pass
 
         Args:
-            name (str): The ProductSet resource for which to retrieve Products.
+            name (str): Required. The ProductSet resource for which to retrieve Products.
 
                 Format is:
                 ``projects/PROJECT_ID/locations/LOC_ID/productSets/PRODUCT_SET_ID``
@@ -1701,8 +1721,8 @@ class ProductSearchClient(object):
                 streaming is performed per-page, this determines the maximum number
                 of resources in a page.
             retry (Optional[google.api_core.retry.Retry]):  A retry object used
-                to retry requests. If ``None`` is specified, requests will not
-                be retried.
+                to retry requests. If ``None`` is specified, requests will
+                be retried using a default configuration.
             timeout (Optional[float]): The amount of time, in seconds, to wait
                 for the request to complete. Note that if ``retry`` is
                 specified, the timeout applies to each individual attempt.
@@ -1710,10 +1730,10 @@ class ProductSearchClient(object):
                 that is provided to the method.
 
         Returns:
-            A :class:`~google.gax.PageIterator` instance. By default, this
-            is an iterable of :class:`~google.cloud.vision_v1.types.Product` instances.
-            This object can also be configured to iterate over the pages
-            of the response through the `options` parameter.
+            A :class:`~google.api_core.page_iterator.PageIterator` instance.
+            An iterable of :class:`~google.cloud.vision_v1.types.Product` instances.
+            You can also iterate over the pages of the response
+            using its `pages` property.
 
         Raises:
             google.api_core.exceptions.GoogleAPICallError: If the request
@@ -1809,16 +1829,16 @@ class ProductSearchClient(object):
             >>> metadata = response.metadata()
 
         Args:
-            parent (str): The project in which the ProductSets should be imported.
+            parent (str): Required. The project in which the ProductSets should be imported.
 
                 Format is ``projects/PROJECT_ID/locations/LOC_ID``.
-            input_config (Union[dict, ~google.cloud.vision_v1.types.ImportProductSetsInputConfig]): The input content for the list of requests.
+            input_config (Union[dict, ~google.cloud.vision_v1.types.ImportProductSetsInputConfig]): Required. The input content for the list of requests.
 
                 If a dict is provided, it must be of the same form as the protobuf
                 message :class:`~google.cloud.vision_v1.types.ImportProductSetsInputConfig`
             retry (Optional[google.api_core.retry.Retry]):  A retry object used
-                to retry requests. If ``None`` is specified, requests will not
-                be retried.
+                to retry requests. If ``None`` is specified, requests will
+                be retried using a default configuration.
             timeout (Optional[float]): The amount of time, in seconds, to wait
                 for the request to complete. Note that if ``retry`` is
                 specified, the timeout applies to each individual attempt.
@@ -1869,5 +1889,138 @@ class ProductSearchClient(object):
             operation,
             self.transport._operations_client,
             product_search_service_pb2.ImportProductSetsResponse,
+            metadata_type=product_search_service_pb2.BatchOperationMetadata,
+        )
+
+    def purge_products(
+        self,
+        parent,
+        product_set_purge_config=None,
+        delete_orphan_products=None,
+        force=None,
+        retry=google.api_core.gapic_v1.method.DEFAULT,
+        timeout=google.api_core.gapic_v1.method.DEFAULT,
+        metadata=None,
+    ):
+        """
+        Asynchronous API to delete all Products in a ProductSet or all Products
+        that are in no ProductSet.
+
+        If a Product is a member of the specified ProductSet in addition to
+        other ProductSets, the Product will still be deleted.
+
+        It is recommended to not delete the specified ProductSet until after
+        this operation has completed. It is also recommended to not add any of
+        the Products involved in the batch delete to a new ProductSet while this
+        operation is running because those Products may still end up deleted.
+
+        It's not possible to undo the PurgeProducts operation. Therefore, it is
+        recommended to keep the csv files used in ImportProductSets (if that was
+        how you originally built the Product Set) before starting PurgeProducts,
+        in case you need to re-import the data after deletion.
+
+        If the plan is to purge all of the Products from a ProductSet and then
+        re-use the empty ProductSet to re-import new Products into the empty
+        ProductSet, you must wait until the PurgeProducts operation has finished
+        for that ProductSet.
+
+        The ``google.longrunning.Operation`` API can be used to keep track of
+        the progress and results of the request. ``Operation.metadata`` contains
+        ``BatchOperationMetadata``. (progress)
+
+        Example:
+            >>> from google.cloud import vision_v1
+            >>>
+            >>> client = vision_v1.ProductSearchClient()
+            >>>
+            >>> parent = client.location_path('[PROJECT]', '[LOCATION]')
+            >>>
+            >>> response = client.purge_products(parent)
+            >>>
+            >>> def callback(operation_future):
+            ...     # Handle result.
+            ...     result = operation_future.result()
+            >>>
+            >>> response.add_done_callback(callback)
+            >>>
+            >>> # Handle metadata.
+            >>> metadata = response.metadata()
+
+        Args:
+            parent (str): Required. The project and location in which the Products should be
+                deleted.
+
+                Format is ``projects/PROJECT_ID/locations/LOC_ID``.
+            product_set_purge_config (Union[dict, ~google.cloud.vision_v1.types.ProductSetPurgeConfig]): Specify which ProductSet contains the Products to be deleted.
+
+                If a dict is provided, it must be of the same form as the protobuf
+                message :class:`~google.cloud.vision_v1.types.ProductSetPurgeConfig`
+            delete_orphan_products (bool): If delete\_orphan\_products is true, all Products that are not in any
+                ProductSet will be deleted.
+            force (bool): The default value is false. Override this value to true to actually perform
+                the purge.
+            retry (Optional[google.api_core.retry.Retry]):  A retry object used
+                to retry requests. If ``None`` is specified, requests will
+                be retried using a default configuration.
+            timeout (Optional[float]): The amount of time, in seconds, to wait
+                for the request to complete. Note that if ``retry`` is
+                specified, the timeout applies to each individual attempt.
+            metadata (Optional[Sequence[Tuple[str, str]]]): Additional metadata
+                that is provided to the method.
+
+        Returns:
+            A :class:`~google.cloud.vision_v1.types._OperationFuture` instance.
+
+        Raises:
+            google.api_core.exceptions.GoogleAPICallError: If the request
+                    failed for any reason.
+            google.api_core.exceptions.RetryError: If the request failed due
+                    to a retryable error and retry attempts failed.
+            ValueError: If the parameters are invalid.
+        """
+        # Wrap the transport method to add retry and timeout logic.
+        if "purge_products" not in self._inner_api_calls:
+            self._inner_api_calls[
+                "purge_products"
+            ] = google.api_core.gapic_v1.method.wrap_method(
+                self.transport.purge_products,
+                default_retry=self._method_configs["PurgeProducts"].retry,
+                default_timeout=self._method_configs["PurgeProducts"].timeout,
+                client_info=self._client_info,
+            )
+
+        # Sanity check: We have some fields which are mutually exclusive;
+        # raise ValueError if more than one is sent.
+        google.api_core.protobuf_helpers.check_oneof(
+            product_set_purge_config=product_set_purge_config,
+            delete_orphan_products=delete_orphan_products,
+        )
+
+        request = product_search_service_pb2.PurgeProductsRequest(
+            parent=parent,
+            product_set_purge_config=product_set_purge_config,
+            delete_orphan_products=delete_orphan_products,
+            force=force,
+        )
+        if metadata is None:
+            metadata = []
+        metadata = list(metadata)
+        try:
+            routing_header = [("parent", parent)]
+        except AttributeError:
+            pass
+        else:
+            routing_metadata = google.api_core.gapic_v1.routing_header.to_grpc_metadata(
+                routing_header
+            )
+            metadata.append(routing_metadata)
+
+        operation = self._inner_api_calls["purge_products"](
+            request, retry=retry, timeout=timeout, metadata=metadata
+        )
+        return google.api_core.operation.from_gapic(
+            operation,
+            self.transport._operations_client,
+            empty_pb2.Empty,
             metadata_type=product_search_service_pb2.BatchOperationMetadata,
         )

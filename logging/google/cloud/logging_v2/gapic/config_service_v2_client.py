@@ -21,6 +21,7 @@ import pkg_resources
 import warnings
 
 from google.oauth2 import service_account
+import google.api_core.client_options
 import google.api_core.gapic_v1.client_info
 import google.api_core.gapic_v1.config
 import google.api_core.gapic_v1.method
@@ -30,15 +31,11 @@ import google.api_core.page_iterator
 import google.api_core.path_template
 import grpc
 
-from google.api import monitored_resource_pb2
 from google.cloud.logging_v2.gapic import config_service_v2_client_config
 from google.cloud.logging_v2.gapic import enums
 from google.cloud.logging_v2.gapic.transports import config_service_v2_grpc_transport
-from google.cloud.logging_v2.proto import log_entry_pb2
 from google.cloud.logging_v2.proto import logging_config_pb2
 from google.cloud.logging_v2.proto import logging_config_pb2_grpc
-from google.cloud.logging_v2.proto import logging_pb2
-from google.cloud.logging_v2.proto import logging_pb2_grpc
 from google.protobuf import empty_pb2
 from google.protobuf import field_mask_pb2
 
@@ -47,10 +44,7 @@ _GAPIC_LIBRARY_VERSION = pkg_resources.get_distribution("google-cloud-logging").
 
 
 class ConfigServiceV2Client(object):
-    """
-    Service for configuring sinks used to export log entries out of
-    Logging.
-    """
+    """Service for configuring sinks used to route log entries."""
 
     SERVICE_ADDRESS = "logging.googleapis.com:443"
     """The default address of the service."""
@@ -80,12 +74,83 @@ class ConfigServiceV2Client(object):
     from_service_account_json = from_service_account_file
 
     @classmethod
+    def billing_path(cls, billing_account):
+        """Return a fully-qualified billing string."""
+        return google.api_core.path_template.expand(
+            "billingAccounts/{billing_account}", billing_account=billing_account
+        )
+
+    @classmethod
+    def billing_exclusion_path(cls, billing_account, exclusion):
+        """Return a fully-qualified billing_exclusion string."""
+        return google.api_core.path_template.expand(
+            "billingAccounts/{billing_account}/exclusions/{exclusion}",
+            billing_account=billing_account,
+            exclusion=exclusion,
+        )
+
+    @classmethod
+    def billing_sink_path(cls, billing_account, sink):
+        """Return a fully-qualified billing_sink string."""
+        return google.api_core.path_template.expand(
+            "billingAccounts/{billing_account}/sinks/{sink}",
+            billing_account=billing_account,
+            sink=sink,
+        )
+
+    @classmethod
     def exclusion_path(cls, project, exclusion):
         """Return a fully-qualified exclusion string."""
         return google.api_core.path_template.expand(
             "projects/{project}/exclusions/{exclusion}",
             project=project,
             exclusion=exclusion,
+        )
+
+    @classmethod
+    def folder_path(cls, folder):
+        """Return a fully-qualified folder string."""
+        return google.api_core.path_template.expand("folders/{folder}", folder=folder)
+
+    @classmethod
+    def folder_exclusion_path(cls, folder, exclusion):
+        """Return a fully-qualified folder_exclusion string."""
+        return google.api_core.path_template.expand(
+            "folders/{folder}/exclusions/{exclusion}",
+            folder=folder,
+            exclusion=exclusion,
+        )
+
+    @classmethod
+    def folder_sink_path(cls, folder, sink):
+        """Return a fully-qualified folder_sink string."""
+        return google.api_core.path_template.expand(
+            "folders/{folder}/sinks/{sink}", folder=folder, sink=sink
+        )
+
+    @classmethod
+    def organization_path(cls, organization):
+        """Return a fully-qualified organization string."""
+        return google.api_core.path_template.expand(
+            "organizations/{organization}", organization=organization
+        )
+
+    @classmethod
+    def organization_exclusion_path(cls, organization, exclusion):
+        """Return a fully-qualified organization_exclusion string."""
+        return google.api_core.path_template.expand(
+            "organizations/{organization}/exclusions/{exclusion}",
+            organization=organization,
+            exclusion=exclusion,
+        )
+
+    @classmethod
+    def organization_sink_path(cls, organization, sink):
+        """Return a fully-qualified organization_sink string."""
+        return google.api_core.path_template.expand(
+            "organizations/{organization}/sinks/{sink}",
+            organization=organization,
+            sink=sink,
         )
 
     @classmethod
@@ -109,6 +174,7 @@ class ConfigServiceV2Client(object):
         credentials=None,
         client_config=None,
         client_info=None,
+        client_options=None,
     ):
         """Constructor.
 
@@ -139,6 +205,9 @@ class ConfigServiceV2Client(object):
                 API requests. If ``None``, then default info will be used.
                 Generally, you only need to set this if you're developing
                 your own client library.
+            client_options (Union[dict, google.api_core.client_options.ClientOptions]):
+                Client options used to set user options on the client. API Endpoint
+                should be set through client_options.
         """
         # Raise deprecation warnings for things we want to go away.
         if client_config is not None:
@@ -157,6 +226,15 @@ class ConfigServiceV2Client(object):
                 stacklevel=2,
             )
 
+        api_endpoint = self.SERVICE_ADDRESS
+        if client_options:
+            if type(client_options) == dict:
+                client_options = google.api_core.client_options.from_dict(
+                    client_options
+                )
+            if client_options.api_endpoint:
+                api_endpoint = client_options.api_endpoint
+
         # Instantiate the transport.
         # The transport is responsible for handling serialization and
         # deserialization and actually sending data to the service.
@@ -165,6 +243,7 @@ class ConfigServiceV2Client(object):
                 self.transport = transport(
                     credentials=credentials,
                     default_class=config_service_v2_grpc_transport.ConfigServiceV2GrpcTransport,
+                    address=api_endpoint,
                 )
             else:
                 if credentials:
@@ -175,7 +254,7 @@ class ConfigServiceV2Client(object):
                 self.transport = transport
         else:
             self.transport = config_service_v2_grpc_transport.ConfigServiceV2GrpcTransport(
-                address=self.SERVICE_ADDRESS, channel=channel, credentials=credentials
+                address=api_endpoint, channel=channel, credentials=credentials
             )
 
         if client_info is None:
@@ -248,8 +327,8 @@ class ConfigServiceV2Client(object):
                 streaming is performed per-page, this determines the maximum number
                 of resources in a page.
             retry (Optional[google.api_core.retry.Retry]):  A retry object used
-                to retry requests. If ``None`` is specified, requests will not
-                be retried.
+                to retry requests. If ``None`` is specified, requests will
+                be retried using a default configuration.
             timeout (Optional[float]): The amount of time, in seconds, to wait
                 for the request to complete. Note that if ``retry`` is
                 specified, the timeout applies to each individual attempt.
@@ -257,10 +336,10 @@ class ConfigServiceV2Client(object):
                 that is provided to the method.
 
         Returns:
-            A :class:`~google.gax.PageIterator` instance. By default, this
-            is an iterable of :class:`~google.cloud.logging_v2.types.LogSink` instances.
-            This object can also be configured to iterate over the pages
-            of the response through the `options` parameter.
+            A :class:`~google.api_core.page_iterator.PageIterator` instance.
+            An iterable of :class:`~google.cloud.logging_v2.types.LogSink` instances.
+            You can also iterate over the pages of the response
+            using its `pages` property.
 
         Raises:
             google.api_core.exceptions.GoogleAPICallError: If the request
@@ -342,8 +421,8 @@ class ConfigServiceV2Client(object):
 
                 Example: ``"projects/my-project-id/sinks/my-sink-id"``.
             retry (Optional[google.api_core.retry.Retry]):  A retry object used
-                to retry requests. If ``None`` is specified, requests will not
-                be retried.
+                to retry requests. If ``None`` is specified, requests will
+                be retried using a default configuration.
             timeout (Optional[float]): The amount of time, in seconds, to wait
                 for the request to complete. Note that if ``retry`` is
                 specified, the timeout applies to each individual attempt.
@@ -445,8 +524,8 @@ class ConfigServiceV2Client(object):
                 will be a unique service account used only for exports from the new
                 sink. For more information, see ``writer_identity`` in ``LogSink``.
             retry (Optional[google.api_core.retry.Retry]):  A retry object used
-                to retry requests. If ``None`` is specified, requests will not
-                be retried.
+                to retry requests. If ``None`` is specified, requests will
+                be retried using a default configuration.
             timeout (Optional[float]): The amount of time, in seconds, to wait
                 for the request to complete. Note that if ``retry`` is
                 specified, the timeout applies to each individual attempt.
@@ -507,8 +586,10 @@ class ConfigServiceV2Client(object):
         """
         Updates a sink. This method replaces the following fields in the
         existing sink with values from the new sink: ``destination``, and
-        ``filter``. The updated sink might also have a new ``writer_identity``;
-        see the ``unique_writer_identity`` field.
+        ``filter``.
+
+        The updated sink might also have a new ``writer_identity``; see the
+        ``unique_writer_identity`` field.
 
         Example:
             >>> from google.cloud import logging_v2
@@ -539,11 +620,10 @@ class ConfigServiceV2Client(object):
 
                 If a dict is provided, it must be of the same form as the protobuf
                 message :class:`~google.cloud.logging_v2.types.LogSink`
-            unique_writer_identity (bool): Optional. See
-                `sinks.create <https://cloud.google.com/logging/docs/api/reference/rest/v2/projects.sinks/create>`__
-                for a description of this field. When updating a sink, the effect of
-                this field on the value of ``writer_identity`` in the updated sink
-                depends on both the old and new values of this field:
+            unique_writer_identity (bool): Optional. See ``sinks.create`` for a description of this field. When
+                updating a sink, the effect of this field on the value of
+                ``writer_identity`` in the updated sink depends on both the old and new
+                values of this field:
 
                 -  If the old and new values of this field are both false or both true,
                    then there is no change to the sink's ``writer_identity``.
@@ -568,8 +648,8 @@ class ConfigServiceV2Client(object):
                 If a dict is provided, it must be of the same form as the protobuf
                 message :class:`~google.cloud.logging_v2.types.FieldMask`
             retry (Optional[google.api_core.retry.Retry]):  A retry object used
-                to retry requests. If ``None`` is specified, requests will not
-                be retried.
+                to retry requests. If ``None`` is specified, requests will
+                be retried using a default configuration.
             timeout (Optional[float]): The amount of time, in seconds, to wait
                 for the request to complete. Note that if ``retry`` is
                 specified, the timeout applies to each individual attempt.
@@ -653,8 +733,8 @@ class ConfigServiceV2Client(object):
 
                 Example: ``"projects/my-project-id/sinks/my-sink-id"``.
             retry (Optional[google.api_core.retry.Retry]):  A retry object used
-                to retry requests. If ``None`` is specified, requests will not
-                be retried.
+                to retry requests. If ``None`` is specified, requests will
+                be retried using a default configuration.
             timeout (Optional[float]): The amount of time, in seconds, to wait
                 for the request to complete. Note that if ``retry`` is
                 specified, the timeout applies to each individual attempt.
@@ -744,8 +824,8 @@ class ConfigServiceV2Client(object):
                 streaming is performed per-page, this determines the maximum number
                 of resources in a page.
             retry (Optional[google.api_core.retry.Retry]):  A retry object used
-                to retry requests. If ``None`` is specified, requests will not
-                be retried.
+                to retry requests. If ``None`` is specified, requests will
+                be retried using a default configuration.
             timeout (Optional[float]): The amount of time, in seconds, to wait
                 for the request to complete. Note that if ``retry`` is
                 specified, the timeout applies to each individual attempt.
@@ -753,10 +833,10 @@ class ConfigServiceV2Client(object):
                 that is provided to the method.
 
         Returns:
-            A :class:`~google.gax.PageIterator` instance. By default, this
-            is an iterable of :class:`~google.cloud.logging_v2.types.LogExclusion` instances.
-            This object can also be configured to iterate over the pages
-            of the response through the `options` parameter.
+            A :class:`~google.api_core.page_iterator.PageIterator` instance.
+            An iterable of :class:`~google.cloud.logging_v2.types.LogExclusion` instances.
+            You can also iterate over the pages of the response
+            using its `pages` property.
 
         Raises:
             google.api_core.exceptions.GoogleAPICallError: If the request
@@ -838,8 +918,8 @@ class ConfigServiceV2Client(object):
 
                 Example: ``"projects/my-project-id/exclusions/my-exclusion-id"``.
             retry (Optional[google.api_core.retry.Retry]):  A retry object used
-                to retry requests. If ``None`` is specified, requests will not
-                be retried.
+                to retry requests. If ``None`` is specified, requests will
+                be retried using a default configuration.
             timeout (Optional[float]): The amount of time, in seconds, to wait
                 for the request to complete. Note that if ``retry`` is
                 specified, the timeout applies to each individual attempt.
@@ -928,8 +1008,8 @@ class ConfigServiceV2Client(object):
                 If a dict is provided, it must be of the same form as the protobuf
                 message :class:`~google.cloud.logging_v2.types.LogExclusion`
             retry (Optional[google.api_core.retry.Retry]):  A retry object used
-                to retry requests. If ``None`` is specified, requests will not
-                be retried.
+                to retry requests. If ``None`` is specified, requests will
+                be retried using a default configuration.
             timeout (Optional[float]): The amount of time, in seconds, to wait
                 for the request to complete. Note that if ``retry`` is
                 specified, the timeout applies to each individual attempt.
@@ -1020,10 +1100,11 @@ class ConfigServiceV2Client(object):
 
                 If a dict is provided, it must be of the same form as the protobuf
                 message :class:`~google.cloud.logging_v2.types.LogExclusion`
-            update_mask (Union[dict, ~google.cloud.logging_v2.types.FieldMask]): Required. A nonempty list of fields to change in the existing exclusion.
-                New values for the fields are taken from the corresponding fields in the
-                ``LogExclusion`` included in this request. Fields not mentioned in
-                ``update_mask`` are not changed and are ignored in the request.
+            update_mask (Union[dict, ~google.cloud.logging_v2.types.FieldMask]): Required. A non-empty list of fields to change in the existing
+                exclusion. New values for the fields are taken from the corresponding
+                fields in the ``LogExclusion`` included in this request. Fields not
+                mentioned in ``update_mask`` are not changed and are ignored in the
+                request.
 
                 For example, to change the filter and description of an exclusion,
                 specify an ``update_mask`` of ``"filter,description"``.
@@ -1031,8 +1112,8 @@ class ConfigServiceV2Client(object):
                 If a dict is provided, it must be of the same form as the protobuf
                 message :class:`~google.cloud.logging_v2.types.FieldMask`
             retry (Optional[google.api_core.retry.Retry]):  A retry object used
-                to retry requests. If ``None`` is specified, requests will not
-                be retried.
+                to retry requests. If ``None`` is specified, requests will
+                be retried using a default configuration.
             timeout (Optional[float]): The amount of time, in seconds, to wait
                 for the request to complete. Note that if ``retry`` is
                 specified, the timeout applies to each individual attempt.
@@ -1111,8 +1192,8 @@ class ConfigServiceV2Client(object):
 
                 Example: ``"projects/my-project-id/exclusions/my-exclusion-id"``.
             retry (Optional[google.api_core.retry.Retry]):  A retry object used
-                to retry requests. If ``None`` is specified, requests will not
-                be retried.
+                to retry requests. If ``None`` is specified, requests will
+                be retried using a default configuration.
             timeout (Optional[float]): The amount of time, in seconds, to wait
                 for the request to complete. Note that if ``retry`` is
                 specified, the timeout applies to each individual attempt.

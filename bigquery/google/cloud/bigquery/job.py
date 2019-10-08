@@ -34,6 +34,7 @@ from google.cloud.bigquery.query import ScalarQueryParameter
 from google.cloud.bigquery.query import StructQueryParameter
 from google.cloud.bigquery.query import UDFResource
 from google.cloud.bigquery.retry import DEFAULT_RETRY
+from google.cloud.bigquery.routine import RoutineReference
 from google.cloud.bigquery.schema import SchemaField
 from google.cloud.bigquery.table import _EmptyRowIterator
 from google.cloud.bigquery.table import EncryptionConfiguration
@@ -332,6 +333,31 @@ class _AsyncJob(google.api_core.future.polling.PollingFuture):
         return _helpers._get_sub_prop(self._properties, ["jobReference", "jobId"])
 
     @property
+    def parent_job_id(self):
+        """Return the ID of the parent job.
+
+        See:
+        https://cloud.google.com/bigquery/docs/reference/rest/v2/Job#JobStatistics.FIELDS.parent_job_id
+
+        Returns:
+            Optional[str]
+        """
+        return _helpers._get_sub_prop(self._properties, ["statistics", "parentJobId"])
+
+    @property
+    def num_child_jobs(self):
+        """The number of child jobs executed.
+
+        See:
+        https://cloud.google.com/bigquery/docs/reference/rest/v2/Job#JobStatistics.FIELDS.num_child_jobs
+
+        Returns:
+            int
+        """
+        count = _helpers._get_sub_prop(self._properties, ["statistics", "numChildJobs"])
+        return int(count) if count is not None else 0
+
+    @property
     def project(self):
         """Project bound to the job.
 
@@ -560,15 +586,16 @@ class _AsyncJob(google.api_core.future.polling.PollingFuture):
         See
         https://cloud.google.com/bigquery/docs/reference/rest/v2/jobs/insert
 
-        :type client: :class:`~google.cloud.bigquery.client.Client` or
-                      ``NoneType``
-        :param client: the client to use.  If not passed, falls back to the
-                       ``client`` stored on the current dataset.
+        Args:
+            client (Optional[google.cloud.bigquery.client.Client]):
+                The client to use. If not passed, falls back to the ``client``
+                associated with the job object or``NoneType``
+            retry (Optional[google.api_core.retry.Retry]):
+                How to retry the RPC.
 
-        :type retry: :class:`google.api_core.retry.Retry`
-        :param retry: (Optional) How to retry the RPC.
-
-        :raises: :exc:`ValueError` if the job has already begin.
+        Raises:
+            ValueError:
+                If the job has already begun.
         """
         if self.state is not None:
             raise ValueError("Job already begun.")
@@ -1159,6 +1186,10 @@ class LoadJobConfig(_JobConfig):
 
     @schema.setter
     def schema(self, value):
+        if value is None:
+            self._del_sub_prop("schema")
+            return
+
         if not all(hasattr(field, "to_api_repr") for field in value):
             raise ValueError("Schema items must be fields")
         _helpers._set_sub_prop(
@@ -2667,8 +2698,21 @@ class QueryJob(_AsyncJob):
         return self._job_statistics().get("ddlOperationPerformed")
 
     @property
+    def ddl_target_routine(self):
+        """Optional[google.cloud.bigquery.routine.RoutineReference]: Return the DDL target routine, present
+            for CREATE/DROP FUNCTION/PROCEDURE  queries.
+
+        See:
+        https://cloud.google.com/bigquery/docs/reference/rest/v2/Job#jobstatistics
+        """
+        prop = self._job_statistics().get("ddlTargetRoutine")
+        if prop is not None:
+            prop = RoutineReference.from_api_repr(prop)
+        return prop
+
+    @property
     def ddl_target_table(self):
-        """Optional[TableReference]: Return the DDL target table, present
+        """Optional[google.cloud.bigquery.table.TableReference]: Return the DDL target table, present
             for CREATE/DROP TABLE/VIEW queries.
 
         See:
@@ -2832,36 +2876,103 @@ class QueryJob(_AsyncJob):
         self._done_timeout = timeout
         super(QueryJob, self)._blocking_poll(timeout=timeout)
 
-    def result(self, timeout=None, retry=DEFAULT_RETRY):
+    @staticmethod
+    def _format_for_exception(query, job_id):
+        """Format a query for the output in exception message.
+
+        Args:
+            query (str): The SQL query to format.
+            job_id (str): The ID of the job that ran the query.
+
+        Returns: (str)
+            A formatted query text.
+        """
+        template = "\n\n(job ID: {job_id})\n\n{header}\n\n{ruler}\n{body}\n{ruler}"
+
+        lines = query.splitlines()
+        max_line_len = max(len(l) for l in lines)
+
+        header = "-----Query Job SQL Follows-----"
+        header = "{:^{total_width}}".format(header, total_width=max_line_len + 5)
+
+        # Print out a "ruler" above and below the SQL so we can judge columns.
+        # Left pad for the line numbers (4 digits plus ":").
+        ruler = "    |" + "    .    |" * (max_line_len // 10)
+
+        # Put line numbers next to the SQL.
+        body = "\n".join(
+            "{:4}:{}".format(n, line) for n, line in enumerate(lines, start=1)
+        )
+
+        return template.format(job_id=job_id, header=header, ruler=ruler, body=body)
+
+    def _begin(self, client=None, retry=DEFAULT_RETRY):
+        """API call:  begin the job via a POST request
+
+        See
+        https://cloud.google.com/bigquery/docs/reference/rest/v2/jobs/insert
+
+        Args:
+            client (Optional[google.cloud.bigquery.client.Client]):
+                The client to use. If not passed, falls back to the ``client``
+                associated with the job object or``NoneType``.
+            retry (Optional[google.api_core.retry.Retry]):
+                How to retry the RPC.
+
+        Raises:
+            ValueError:
+                If the job has already begun.
+        """
+
+        try:
+            super(QueryJob, self)._begin(client=client, retry=retry)
+        except exceptions.GoogleCloudError as exc:
+            exc.message += self._format_for_exception(self.query, self.job_id)
+            exc.query_job = self
+            raise
+
+    def result(
+        self, timeout=None, page_size=None, retry=DEFAULT_RETRY, max_results=None
+    ):
         """Start the job and wait for it to complete and get the result.
 
-        :type timeout: float
-        :param timeout:
-            How long (in seconds) to wait for job to complete before raising
-            a :class:`concurrent.futures.TimeoutError`.
+        Args:
+            timeout (float):
+                How long (in seconds) to wait for job to complete before
+                raising a :class:`concurrent.futures.TimeoutError`.
+            page_size (int):
+                (Optional) The maximum number of rows in each page of results
+                from this request. Non-positive values are ignored.
+            retry (google.api_core.retry.Retry):
+                (Optional) How to retry the call that retrieves rows.
 
-        :type retry: :class:`google.api_core.retry.Retry`
-        :param retry: (Optional) How to retry the call that retrieves rows.
+        Returns:
+            google.cloud.bigquery.table.RowIterator:
+                Iterator of row data
+                :class:`~google.cloud.bigquery.table.Row`-s. During each
+                page, the iterator will have the ``total_rows`` attribute
+                set, which counts the total number of rows **in the result
+                set** (this is distinct from the total number of rows in the
+                current page: ``iterator.page.num_items``).
 
-        :rtype: :class:`~google.cloud.bigquery.table.RowIterator`
-        :returns:
-            Iterator of row data :class:`~google.cloud.bigquery.table.Row`-s.
-            During each page, the iterator will have the ``total_rows``
-            attribute set, which counts the total number of rows **in the
-            result set** (this is distinct from the total number of rows in
-            the current page: ``iterator.page.num_items``).
-
-        :raises:
-            :class:`~google.cloud.exceptions.GoogleCloudError` if the job
-            failed or :class:`concurrent.futures.TimeoutError` if the job did
-            not complete in the given timeout.
+        Raises:
+            google.cloud.exceptions.GoogleCloudError:
+                If the job failed.
+            concurrent.futures.TimeoutError:
+                If the job did not complete in the given timeout.
         """
-        super(QueryJob, self).result(timeout=timeout)
-        # Return an iterator instead of returning the job.
-        if not self._query_results:
-            self._query_results = self._client._get_query_results(
-                self.job_id, retry, project=self.project, location=self.location
-            )
+        try:
+            super(QueryJob, self).result(timeout=timeout)
+
+            # Return an iterator instead of returning the job.
+            if not self._query_results:
+                self._query_results = self._client._get_query_results(
+                    self.job_id, retry, project=self.project, location=self.location
+                )
+        except exceptions.GoogleCloudError as exc:
+            exc.message += self._format_for_exception(self.query, self.job_id)
+            exc.query_job = self
+            raise
 
         # If the query job is complete but there are no query results, this was
         # special job, such as a DDL query. Return an empty result set to
@@ -2874,10 +2985,68 @@ class QueryJob(_AsyncJob):
         dest_table_ref = self.destination
         dest_table = Table(dest_table_ref, schema=schema)
         dest_table._properties["numRows"] = self._query_results.total_rows
-        rows = self._client.list_rows(dest_table, retry=retry)
+        rows = self._client.list_rows(
+            dest_table, page_size=page_size, retry=retry, max_results=max_results
+        )
         rows._preserve_order = _contains_order_by(self.query)
         return rows
 
+    # If changing the signature of this method, make sure to apply the same
+    # changes to table.RowIterator.to_arrow()
+    def to_arrow(self, progress_bar_type=None, bqstorage_client=None):
+        """[Beta] Create a class:`pyarrow.Table` by loading all pages of a
+        table or query.
+
+        Args:
+            progress_bar_type (Optional[str]):
+                If set, use the `tqdm <https://tqdm.github.io/>`_ library to
+                display a progress bar while the data downloads. Install the
+                ``tqdm`` package to use this feature.
+
+                Possible values of ``progress_bar_type`` include:
+
+                ``None``
+                  No progress bar.
+                ``'tqdm'``
+                  Use the :func:`tqdm.tqdm` function to print a progress bar
+                  to :data:`sys.stderr`.
+                ``'tqdm_notebook'``
+                  Use the :func:`tqdm.tqdm_notebook` function to display a
+                  progress bar as a Jupyter notebook widget.
+                ``'tqdm_gui'``
+                  Use the :func:`tqdm.tqdm_gui` function to display a
+                  progress bar as a graphical dialog box.
+            bqstorage_client ( \
+                google.cloud.bigquery_storage_v1beta1.BigQueryStorageClient \
+            ):
+                **Beta Feature** Optional. A BigQuery Storage API client. If
+                supplied, use the faster BigQuery Storage API to fetch rows
+                from BigQuery. This API is a billable API.
+
+                This method requires the ``pyarrow`` and
+                ``google-cloud-bigquery-storage`` libraries.
+
+                Reading from a specific partition or snapshot is not
+                currently supported by this method.
+
+        Returns:
+            pyarrow.Table
+                A :class:`pyarrow.Table` populated with row data and column
+                headers from the query results. The column headers are derived
+                from the destination table's schema.
+
+        Raises:
+            ValueError:
+                If the :mod:`pyarrow` library cannot be imported.
+
+        ..versionadded:: 1.17.0
+        """
+        return self.result().to_arrow(
+            progress_bar_type=progress_bar_type, bqstorage_client=bqstorage_client
+        )
+
+    # If changing the signature of this method, make sure to apply the same
+    # changes to table.RowIterator.to_dataframe()
     def to_dataframe(self, bqstorage_client=None, dtypes=None, progress_bar_type=None):
         """Return a pandas DataFrame from a QueryJob
 

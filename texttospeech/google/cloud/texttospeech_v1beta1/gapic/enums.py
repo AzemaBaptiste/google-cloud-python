@@ -13,6 +13,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+
 """Wrappers for protocol buffer enum types."""
 
 import enum
@@ -27,7 +28,7 @@ class AudioEncoding(enum.IntEnum):
       AUDIO_ENCODING_UNSPECIFIED (int): Not specified. Will return result ``google.rpc.Code.INVALID_ARGUMENT``.
       LINEAR16 (int): Uncompressed 16-bit signed little-endian samples (Linear PCM).
       Audio content returned as LINEAR16 also contains a WAV header.
-      MP3 (int): MP3 audio.
+      MP3 (int): MP3 audio at 32kbps.
       OGG_OPUS (int): Opus encoded audio wrapped in an ogg container. The result will be a
       file which can be played natively on Android, and in browsers (at least
       Chrome and Firefox). The quality of the encoding is considerably higher

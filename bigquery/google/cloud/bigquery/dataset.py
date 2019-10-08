@@ -22,6 +22,7 @@ import copy
 import google.cloud._helpers
 from google.cloud.bigquery import _helpers
 from google.cloud.bigquery.model import ModelReference
+from google.cloud.bigquery.routine import RoutineReference
 from google.cloud.bigquery.table import TableReference
 
 
@@ -50,6 +51,25 @@ def _get_model_reference(self, model_id):
     """
     return ModelReference.from_api_repr(
         {"projectId": self.project, "datasetId": self.dataset_id, "modelId": model_id}
+    )
+
+
+def _get_routine_reference(self, routine_id):
+    """Constructs a RoutineReference.
+
+    Args:
+        routine_id (str): the ID of the routine.
+
+    Returns:
+        google.cloud.bigquery.routine.RoutineReference:
+            A RoutineReference for a routine in this dataset.
+    """
+    return RoutineReference.from_api_repr(
+        {
+            "projectId": self.project,
+            "datasetId": self.dataset_id,
+            "routineId": routine_id,
+        }
     )
 
 
@@ -224,6 +244,8 @@ class DatasetReference(object):
 
     model = _get_model_reference
 
+    routine = _get_routine_reference
+
     @classmethod
     def from_api_repr(cls, resource):
         """Factory: construct a dataset reference given its API representation
@@ -247,7 +269,7 @@ class DatasetReference(object):
         Args:
             dataset_id (str):
                 A dataset ID in standard SQL format. If ``default_project``
-                is not specified, this must included both the project ID and
+                is not specified, this must include both the project ID and
                 the dataset ID, separated by ``.``.
             default_project (str):
                 Optional. The project ID to use when ``dataset_id`` does not
@@ -268,13 +290,13 @@ class DatasetReference(object):
         """
         output_dataset_id = dataset_id
         output_project_id = default_project
-        parts = dataset_id.split(".")
+        parts = _helpers._split_id(dataset_id)
 
         if len(parts) == 1 and not default_project:
             raise ValueError(
                 "When default_project is not set, dataset_id must be a "
-                "fully-qualified dataset ID in standard SQL format. "
-                'e.g. "project.dataset_id", got {}'.format(dataset_id)
+                "fully-qualified dataset ID in standard SQL format, "
+                'e.g., "project.dataset_id" got {}'.format(dataset_id)
             )
         elif len(parts) == 2:
             output_project_id, output_dataset_id = parts
@@ -532,7 +554,7 @@ class Dataset(object):
         Args:
             full_dataset_id (str):
                 A fully-qualified dataset ID in standard SQL format. Must
-                included both the project ID and the dataset ID, separated by
+                include both the project ID and the dataset ID, separated by
                 ``.``.
 
         Returns:
@@ -590,6 +612,8 @@ class Dataset(object):
     table = _get_table_reference
 
     model = _get_model_reference
+
+    routine = _get_routine_reference
 
     def __repr__(self):
         return "Dataset({})".format(repr(self.reference))
@@ -672,3 +696,5 @@ class DatasetListItem(object):
     table = _get_table_reference
 
     model = _get_model_reference
+
+    routine = _get_routine_reference

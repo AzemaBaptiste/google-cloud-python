@@ -19,39 +19,60 @@ from synthtool import gcp
 
 gapic = gcp.GAPICGenerator()
 common = gcp.CommonTemplates()
-versions = ["v3beta1"]
+versions = ["v3beta1", "v3"]
 
-excludes = ["setup.py", "nox*.py", "README.rst", "docs/conf.py", "docs/index.rst", 
-            "translation.py"]
+excludes = [
+    "setup.py",
+    "nox*.py",
+    "README.rst",
+    "docs/conf.py",
+    "docs/index.rst",
+    "translation.py",
+]
 
 # ----------------------------------------------------------------------------
 # Generate asset GAPIC layer
 # ----------------------------------------------------------------------------
 for version in versions:
-    library = gapic.py_library(
-        "translate",
-        version,
-        include_protos=True,
-    )
+    library = gapic.py_library("translate", version, include_protos=True)
 
-    #s.move(library / f'google/cloud/translation_{version}', f'google/cloud/translate_{version}', excludes=excludes)
-    s.move(library / f'google/cloud/translate_{version}', excludes=excludes)
-    s.move(library / 'tests')
+    # s.move(library / f'google/cloud/translation_{version}', f'google/cloud/translate_{version}', excludes=excludes)
+    s.move(library / f"google/cloud/translate_{version}", excludes=excludes)
+    s.move(library / "tests")
     s.move(library / f"docs/gapic/{version}")
 
-# translation -> translate
-s.replace(
-    "google/**/translation_service_pb2_grpc.py",
-    "google.cloud.translation_v3beta1.proto",
-    "google.cloud.translate_v3beta1.proto",
-)
+    # translation -> translate
+    s.replace(
+        "google/**/translation_service_pb2_grpc.py",
+        f"google.cloud.translation_{version}.proto",
+        f"google.cloud.translate_{version}.proto",
+    )
 
 s.replace(
     "google/cloud/**/translation_service_pb2.py",
     r"""record delimiters are ':raw-latex:`\\n`' instead of
           ':raw-latex:`\\r`:raw-latex:`\\n`'.""",
     r"""record delimiters are ``\\\\\\\\n`` instead of
-          ``\\\\\\\\r\\\\\\\\n``.""",)
+          ``\\\\\\\\r\\\\\\\\n``.""",
+)
+
+# Fix docstring issue for classes with no summary line
+s.replace(
+    "google/cloud/**/proto/*_pb2.py",
+    '''__doc__ = """Attributes:''',
+    '''__doc__ = """
+    Attributes:''',
+)
+
+# Fix wrapping for literal string
+s.replace(
+    "google/cloud/**/translation_service_pb2.py",
+    r"""This field has the same length as \[``contents`
+\s+`\]\[google\.cloud\.translation\.v3beta1\.TranslateTextRequest\.conte
+\s+nts\]\.""",
+    """This field has the same length as [``contents``][google.cloud.translation.v3beta1.TranslateTextRequest.contents].""",
+)
+
 # ----------------------------------------------------------------------------
 # Add templated files
 # ----------------------------------------------------------------------------

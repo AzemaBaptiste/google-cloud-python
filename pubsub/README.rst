@@ -1,7 +1,7 @@
 Python Client for Google Cloud Pub / Sub
 ========================================
 
-|beta| |pypi| |versions|
+|GA| |pypi| |versions| 
 
 `Google Cloud Pub / Sub`_ is a fully-managed real-time messaging service that
 allows you to send and receive messages between independent applications. You
@@ -19,15 +19,15 @@ independently written applications.
 - `Product Documentation`_
 - `Client Library Documentation`_
 
-.. |beta| image:: https://img.shields.io/badge/support-beta-silver.svg
-   :target: https://github.com/googleapis/google-cloud-python/blob/master/README.rst#beta-support
+.. |GA| image:: https://img.shields.io/badge/support-GA-gold.svg
+   :target: https://github.com/googleapis/google-cloud-python/blob/master/README.rst#general-availability
 .. |pypi| image:: https://img.shields.io/pypi/v/google-cloud-pubsub.svg
    :target: https://pypi.org/project/google-cloud-pubsub/
 .. |versions| image:: https://img.shields.io/pypi/pyversions/google-cloud-pubsub.svg
    :target: https://pypi.org/project/google-cloud-pubsub/
 .. _Google Cloud Pub / Sub: https://cloud.google.com/pubsub/
 .. _Product Documentation: https://cloud.google.com/pubsub/docs
-.. _Client Library Documentation: https://googleapis.github.io/google-cloud-python/latest/pubsub/
+.. _Client Library Documentation: https://googleapis.dev/python/pubsub/latest
 
 Quick Start
 -----------
@@ -42,7 +42,7 @@ In order to use this library, you first need to go through the following steps:
 .. _Select or create a Cloud Platform project.: https://console.cloud.google.com/project
 .. _Enable billing for your project.: https://cloud.google.com/billing/docs/how-to/modify-project#enable_billing_for_a_project
 .. _Enable the Google Cloud Pub / Sub API.:  https://cloud.google.com/pubsub
-.. _Setup Authentication.: https://googleapis.github.io/google-cloud-python/latest/core/auth.html
+.. _Setup Authentication.: https://googleapis.dev/python/google-api-core/latest/auth.html
 
 Installation
 ~~~~~~~~~~~~
@@ -113,7 +113,7 @@ messages to it
 
 To learn more, consult the `publishing documentation`_.
 
-.. _publishing documentation: http://google-cloud-python.readthedocs.io/en/latest/pubsub/publisher/index.html
+.. _publishing documentation: https://googleapis.dev/python/pubsub/latest
 
 
 Subscribing
@@ -155,6 +155,75 @@ block the current thread until a given condition obtains:
     except KeyboardInterrupt:
         future.cancel()
 
-To learn more, consult the `subscriber documentation`_.
+It is also possible to pull messages in a synchronous (blocking) fashion. To
+learn more about subscribing, consult the `subscriber documentation`_.
 
-.. _subscriber documentation: http://google-cloud-python.readthedocs.io/en/latest/pubsub/subscriber/index.html
+.. _subscriber documentation: https://googleapis.dev/python/pubsub/latest
+
+
+Authentication
+^^^^^^^^^^^^^^
+
+It is possible to specify the authentication method to use with the Pub/Sub
+clients. This can be done by providing an explicit `Credentials`_ instance. Support
+for various authentication methods is available from the `google-auth`_ library.
+
+For example, to use JSON Web Tokens, provide a `google.auth.jwt.Credentials`_ instance:
+
+.. code-block:: python
+
+    import json
+    from google.auth import jwt
+
+    service_account_info = json.load(open("service-account-info.json"))
+    audience = "https://pubsub.googleapis.com/google.pubsub.v1.Subscriber"
+
+    credentials = jwt.Credentials.from_service_account_info(
+        service_account_info, audience=audience
+    )
+
+    subscriber = pubsub_v1.SubscriberClient(credentials=credentials)
+
+    # The same for the publisher, except that the "audience" claim needs to be adjusted
+    publisher_audience = "https://pubsub.googleapis.com/google.pubsub.v1.Publisher"
+    credentials_pub = credentials.with_claims(audience=publisher_audience) 
+    publisher = pubsub_v1.PublisherClient(credentials=credentials_pub)
+
+.. _Credentials: https://google-auth.readthedocs.io/en/latest/reference/google.auth.credentials.html#google.auth.credentials.Credentials
+.. _google-auth: https://google-auth.readthedocs.io/en/latest/index.html
+.. _google.auth.jwt.Credentials: https://google-auth.readthedocs.io/en/latest/reference/google.auth.jwt.html#google.auth.jwt.Credentials
+
+
+Versioning
+----------
+
+This library follows `Semantic Versioning`_.
+
+It is currently in major version one (1.y.z), which means that the public API should be considered stable.
+
+.. _Semantic Versioning: http://semver.org/
+
+Contributing
+------------
+
+Contributions to this library are always welcome and highly encouraged.
+
+See the `CONTRIBUTING doc`_ for more information on how to get started.
+
+.. _CONTRIBUTING doc: https://github.com/googleapis/google-cloud-python/blob/master/CONTRIBUTING.rst
+
+Community
+---------
+
+Google Cloud Platform Python developers hang out in `Slack`_ in the ``#python``
+channel, click here to `get an invitation`_.
+
+.. _Slack: https://googlecloud-community.slack.com
+.. _get an invitation: https://gcp-slack.appspot.com/
+
+License
+-------
+
+Apache 2.0 - See `the LICENSE`_ for more information.
+
+.. _the LICENSE: https://github.com/googleapis/google-cloud-python/blob/master/LICENSE

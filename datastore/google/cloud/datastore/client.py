@@ -15,6 +15,7 @@
 
 import os
 
+import google.api_core.client_options
 from google.cloud._helpers import _LocalStack
 from google.cloud._helpers import _determine_default_project as _base_default_project
 from google.cloud.client import ClientWithProject
@@ -201,6 +202,11 @@ class Client(ClientWithProject):
                         you only need to set this if you're developing your
                         own library or partner tool.
 
+    :type client_options: :class:`~google.api_core.client_options.ClientOptions`
+                          or :class:`dict`
+    :param client_options: (Optional) Client options used to set user options on the
+                           client. API Endpoint should be set through client_options.
+
     :type _http: :class:`~requests.Session`
     :param _http: (Optional) HTTP object to make requests. Can be any object
                   that defines ``request()`` with the same interface as
@@ -228,6 +234,7 @@ class Client(ClientWithProject):
         namespace=None,
         credentials=None,
         client_info=_CLIENT_INFO,
+        client_options=None,
         _http=None,
         _use_grpc=None,
     ):
@@ -236,6 +243,7 @@ class Client(ClientWithProject):
         )
         self.namespace = namespace
         self._client_info = client_info
+        self._client_options = client_options
         self._batch_stack = _LocalStack()
         self._datastore_api_internal = None
         if _use_grpc is None:
@@ -246,7 +254,15 @@ class Client(ClientWithProject):
             host = os.environ[GCD_HOST]
             self._base_url = "http://" + host
         except KeyError:
-            self._base_url = _DATASTORE_BASE_URL
+            api_endpoint = _DATASTORE_BASE_URL
+            if client_options:
+                if type(client_options) == dict:
+                    client_options = google.api_core.client_options.from_dict(
+                        client_options
+                    )
+                if client_options.api_endpoint:
+                    api_endpoint = client_options.api_endpoint
+            self._base_url = api_endpoint
 
     @staticmethod
     def _determine_default(project):
@@ -560,7 +576,6 @@ class Client(ClientWithProject):
     def transaction(self, **kwargs):
         """Proxy to :class:`google.cloud.datastore.transaction.Transaction`.
 
-        :type kwargs: dict
         :param kwargs: Keyword arguments to be passed in.
         """
         return Transaction(self, **kwargs)
@@ -633,7 +648,6 @@ class Client(ClientWithProject):
             >>> query_iter.next_page_token is None
             True
 
-        :type kwargs: dict
         :param kwargs: Parameters for initializing and instance of
                        :class:`~google.cloud.datastore.query.Query`.
 
@@ -648,3 +662,30 @@ class Client(ClientWithProject):
         if "namespace" not in kwargs:
             kwargs["namespace"] = self.namespace
         return Query(self, **kwargs)
+
+    def reserve_ids(self, complete_key, num_ids):
+        """Reserve a list of IDs from a complete key.
+
+        :type complete_key: :class:`google.cloud.datastore.key.Key`
+        :param complete_key: Partial key to use as base for reserved IDs.
+
+        :type num_ids: int
+        :param num_ids: The number of IDs to reserve.
+
+        :rtype: class:`NoneType`
+        :returns: None
+        :raises: :class:`ValueError` if `complete_key`` is not a
+                 Complete key.
+        """
+        if complete_key.is_partial:
+            raise ValueError(("Key is not Complete.", complete_key))
+
+        if not isinstance(num_ids, int):
+            raise ValueError(("num_ids is not a valid integer.", num_ids))
+
+        complete_key_pb = complete_key.to_protobuf()
+        complete_key_pbs = [complete_key_pb] * num_ids
+
+        self._datastore_api.reserve_ids(complete_key.project, complete_key_pbs)
+
+        return None

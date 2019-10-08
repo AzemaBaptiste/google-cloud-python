@@ -67,7 +67,14 @@ class SpannerGrpcTransport(object):
 
         # Create the channel.
         if channel is None:
-            channel = self.create_channel(address=address, credentials=credentials)
+            channel = self.create_channel(
+                address=address,
+                credentials=credentials,
+                options={
+                    "grpc.max_send_message_length": -1,
+                    "grpc.max_receive_message_length": -1,
+                }.items(),
+            )
 
         self._channel = channel
 
@@ -76,7 +83,9 @@ class SpannerGrpcTransport(object):
         self._stubs = {"spanner_stub": spanner_pb2_grpc.SpannerStub(channel)}
 
     @classmethod
-    def create_channel(cls, address="spanner.googleapis.com:443", credentials=None):
+    def create_channel(
+        cls, address="spanner.googleapis.com:443", credentials=None, **kwargs
+    ):
         """Create and return a gRPC channel object.
 
         Args:
@@ -86,6 +95,8 @@ class SpannerGrpcTransport(object):
                 credentials identify this application to the service. If
                 none are specified, the client will attempt to ascertain
                 the credentials from the environment.
+            kwargs (dict): Keyword arguments, which are passed to the
+                channel creation.
 
         Returns:
             grpc.Channel: A gRPC channel object.
@@ -95,7 +106,7 @@ class SpannerGrpcTransport(object):
         )
         options = [(grpc_gcp.API_CONFIG_CHANNEL_ARG, grpc_gcp_config)]
         return google.api_core.grpc_helpers.create_channel(
-            address, credentials=credentials, scopes=cls._OAUTH_SCOPES
+            address, credentials=credentials, scopes=cls._OAUTH_SCOPES, **kwargs
         )
 
     @property
@@ -135,6 +146,22 @@ class SpannerGrpcTransport(object):
                 deserialized response object.
         """
         return self._stubs["spanner_stub"].CreateSession
+
+    @property
+    def batch_create_sessions(self):
+        """Return the gRPC stub for :meth:`SpannerClient.batch_create_sessions`.
+
+        Creates multiple new sessions.
+
+        This API can be used to initialize a session cache on the clients.
+        See https://goo.gl/TgSFN2 for best practices on session cache management.
+
+        Returns:
+            Callable: A callable which accepts the appropriate
+                deserialized request object and returns a
+                deserialized response object.
+        """
+        return self._stubs["spanner_stub"].BatchCreateSessions
 
     @property
     def get_session(self):

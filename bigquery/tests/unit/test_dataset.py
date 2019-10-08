@@ -158,6 +158,13 @@ class TestDatasetReference(unittest.TestCase):
         self.assertEqual(model_ref.dataset_id, "dataset_1")
         self.assertEqual(model_ref.model_id, "model_1")
 
+    def test_routine(self):
+        dataset_ref = self._make_one("some-project-1", "dataset_1")
+        routine_ref = dataset_ref.routine("routine_1")
+        self.assertEqual(routine_ref.project, "some-project-1")
+        self.assertEqual(routine_ref.dataset_id, "dataset_1")
+        self.assertEqual(routine_ref.routine_id, "routine_1")
+
     def test_to_api_repr(self):
         dataset = self._make_one("project_1", "dataset_1")
 
@@ -179,10 +186,26 @@ class TestDatasetReference(unittest.TestCase):
         self.assertEqual(got.project, "string-project")
         self.assertEqual(got.dataset_id, "string_dataset")
 
+    def test_from_string_w_prefix(self):
+        cls = self._get_target_class()
+        got = cls.from_string("google.com:string-project.string_dataset")
+        self.assertEqual(got.project, "google.com:string-project")
+        self.assertEqual(got.dataset_id, "string_dataset")
+
     def test_from_string_legacy_string(self):
         cls = self._get_target_class()
         with self.assertRaises(ValueError):
             cls.from_string("string-project:string_dataset")
+
+    def test_from_string_w_incorrect_prefix(self):
+        cls = self._get_target_class()
+        with self.assertRaises(ValueError):
+            cls.from_string("google.com.string-project.dataset_id")
+
+    def test_from_string_w_prefix_and_too_many_parts(self):
+        cls = self._get_target_class()
+        with self.assertRaises(ValueError):
+            cls.from_string("google.com:string-project.dataset_id.table_id")
 
     def test_from_string_not_fully_qualified(self):
         cls = self._get_target_class()

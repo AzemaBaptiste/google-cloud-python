@@ -14,6 +14,7 @@
 
 import copy
 import json
+import textwrap
 import unittest
 
 import mock
@@ -24,6 +25,11 @@ try:
     import pandas
 except (ImportError, AttributeError):  # pragma: NO COVER
     pandas = None
+
+try:
+    import pyarrow
+except ImportError:  # pragma: NO COVER
+    pyarrow = None
 try:
     from google.cloud import bigquery_storage_v1beta1
 except (ImportError, AttributeError):  # pragma: NO COVER
@@ -67,7 +73,7 @@ def _make_job_resource(
     started=False,
     ended=False,
     etag="abc-def-hjk",
-    endpoint="https://www.googleapis.com",
+    endpoint="https://bigquery.googleapis.com",
     job_type="load",
     job_id="a-random-id",
     project_id="some-project",
@@ -261,6 +267,22 @@ class Test_AsyncJob(unittest.TestCase):
         derived = self._make_derived(self.JOB_ID, client)
 
         self.assertEqual(derived.job_type, "derived")
+
+    def test_parent_job_id(self):
+        client = _make_client(project=self.PROJECT)
+        job = self._make_one(self.JOB_ID, client)
+
+        self.assertIsNone(job.parent_job_id)
+        job._properties["statistics"] = {"parentJobId": "parent-job-123"}
+        self.assertEqual(job.parent_job_id, "parent-job-123")
+
+    def test_num_child_jobs(self):
+        client = _make_client(project=self.PROJECT)
+        job = self._make_one(self.JOB_ID, client)
+
+        self.assertEqual(job.num_child_jobs, 0)
+        job._properties["statistics"] = {"numChildJobs": "17"}
+        self.assertEqual(job.num_child_jobs, 17)
 
     def test_labels_miss(self):
         client = _make_client(project=self.PROJECT)
@@ -1016,7 +1038,7 @@ class _Base(object):
     from google.cloud.bigquery.dataset import DatasetReference
     from google.cloud.bigquery.table import TableReference
 
-    ENDPOINT = "https://www.googleapis.com"
+    ENDPOINT = "https://bigquery.googleapis.com"
     PROJECT = "project"
     SOURCE1 = "http://example.com/source1.csv"
     DS_ID = "dataset_id"
@@ -1497,6 +1519,19 @@ class TestLoadJobConfig(unittest.TestCase, _Base):
         self.assertEqual(
             config._properties["load"]["schema"], {"fields": [full_name_repr, age_repr]}
         )
+
+    def test_schema_setter_unsetting_schema(self):
+        from google.cloud.bigquery.schema import SchemaField
+
+        config = self._get_target_class()()
+        config._properties["load"]["schema"] = [
+            SchemaField("full_name", "STRING", mode="REQUIRED"),
+            SchemaField("age", "INTEGER", mode="REQUIRED"),
+        ]
+
+        config.schema = None
+        self.assertNotIn("schema", config._properties["load"])
+        config.schema = None  # no error, idempotent operation
 
     def test_schema_update_options_missing(self):
         config = self._get_target_class()()
@@ -3845,6 +3880,30 @@ class TestQueryJob(unittest.TestCase, _Base):
         query_stats["ddlOperationPerformed"] = op
         self.assertEqual(job.ddl_operation_performed, op)
 
+    def test_ddl_target_routine(self):
+        from google.cloud.bigquery.routine import RoutineReference
+
+        ref_routine = {
+            "projectId": self.PROJECT,
+            "datasetId": "ddl_ds",
+            "routineId": "targetroutine",
+        }
+        client = _make_client(project=self.PROJECT)
+        job = self._make_one(self.JOB_ID, self.QUERY, client)
+        self.assertIsNone(job.ddl_target_routine)
+
+        statistics = job._properties["statistics"] = {}
+        self.assertIsNone(job.ddl_target_routine)
+
+        query_stats = statistics["query"] = {}
+        self.assertIsNone(job.ddl_target_routine)
+
+        query_stats["ddlTargetRoutine"] = ref_routine
+        self.assertIsInstance(job.ddl_target_routine, RoutineReference)
+        self.assertEqual(job.ddl_target_routine.routine_id, "targetroutine")
+        self.assertEqual(job.ddl_target_routine.dataset_id, "ddl_ds")
+        self.assertEqual(job.ddl_target_routine.project, self.PROJECT)
+
     def test_ddl_target_table(self):
         from google.cloud.bigquery.table import TableReference
 
@@ -4090,6 +4149,45 @@ class TestQueryJob(unittest.TestCase, _Base):
         # on the response from tabledata.list.
         self.assertEqual(result.total_rows, 1)
 
+    def test_result_with_max_results(self):
+        from google.cloud.bigquery.table import RowIterator
+
+        query_resource = {
+            "jobComplete": True,
+            "jobReference": {"projectId": self.PROJECT, "jobId": self.JOB_ID},
+            "schema": {"fields": [{"name": "col1", "type": "STRING"}]},
+            "totalRows": "5",
+        }
+        tabledata_resource = {
+            "totalRows": "5",
+            "pageToken": None,
+            "rows": [
+                {"f": [{"v": "abc"}]},
+                {"f": [{"v": "def"}]},
+                {"f": [{"v": "ghi"}]},
+            ],
+        }
+        connection = _make_connection(query_resource, tabledata_resource)
+        client = _make_client(self.PROJECT, connection=connection)
+        resource = self._make_resource(ended=True)
+        job = self._get_target_class().from_api_repr(resource, client)
+
+        max_results = 3
+
+        result = job.result(max_results=max_results)
+
+        self.assertIsInstance(result, RowIterator)
+        self.assertEqual(result.total_rows, 5)
+
+        rows = list(result)
+
+        self.assertEqual(len(rows), 3)
+        self.assertEqual(len(connection.api_request.call_args_list), 2)
+        tabledata_list_request = connection.api_request.call_args_list[1]
+        self.assertEqual(
+            tabledata_list_request[1]["query_params"]["maxResults"], max_results
+        )
+
     def test_result_w_empty_schema(self):
         from google.cloud.bigquery.table import _EmptyRowIterator
 
@@ -4168,11 +4266,74 @@ class TestQueryJob(unittest.TestCase, _Base):
         self.assertEqual(query_request[1]["query_params"]["timeoutMs"], 900)
         self.assertEqual(reload_request[1]["method"], "GET")
 
+    def test_result_w_page_size(self):
+        # Arrange
+        query_results_resource = {
+            "jobComplete": True,
+            "jobReference": {"projectId": self.PROJECT, "jobId": self.JOB_ID},
+            "schema": {"fields": [{"name": "col1", "type": "STRING"}]},
+            "totalRows": "4",
+        }
+        job_resource = self._make_resource(started=True, ended=True)
+        q_config = job_resource["configuration"]["query"]
+        q_config["destinationTable"] = {
+            "projectId": self.PROJECT,
+            "datasetId": self.DS_ID,
+            "tableId": self.TABLE_ID,
+        }
+        tabledata_resource = {
+            "totalRows": 4,
+            "pageToken": "some-page-token",
+            "rows": [
+                {"f": [{"v": "row1"}]},
+                {"f": [{"v": "row2"}]},
+                {"f": [{"v": "row3"}]},
+            ],
+        }
+        tabledata_resource_page_2 = {"totalRows": 4, "rows": [{"f": [{"v": "row4"}]}]}
+        conn = _make_connection(
+            query_results_resource, tabledata_resource, tabledata_resource_page_2
+        )
+        client = _make_client(self.PROJECT, connection=conn)
+        job = self._get_target_class().from_api_repr(job_resource, client)
+
+        # Act
+        result = job.result(page_size=3)
+
+        # Assert
+        actual_rows = list(result)
+        self.assertEqual(len(actual_rows), 4)
+
+        tabledata_path = "/projects/%s/datasets/%s/tables/%s/data" % (
+            self.PROJECT,
+            self.DS_ID,
+            self.TABLE_ID,
+        )
+        conn.api_request.assert_has_calls(
+            [
+                mock.call(
+                    method="GET", path=tabledata_path, query_params={"maxResults": 3}
+                ),
+                mock.call(
+                    method="GET",
+                    path=tabledata_path,
+                    query_params={"pageToken": "some-page-token", "maxResults": 3},
+                ),
+            ]
+        )
+
     def test_result_error(self):
         from google.cloud import exceptions
 
+        query = textwrap.dedent(
+            """
+            SELECT foo, bar
+            FROM table_baz
+            WHERE foo == bar"""
+        )
+
         client = _make_client(project=self.PROJECT)
-        job = self._make_one(self.JOB_ID, self.QUERY, client)
+        job = self._make_one(self.JOB_ID, query, client)
         error_result = {
             "debugInfo": "DEBUG",
             "location": "LOCATION",
@@ -4191,6 +4352,52 @@ class TestQueryJob(unittest.TestCase, _Base):
 
         self.assertIsInstance(exc_info.exception, exceptions.GoogleCloudError)
         self.assertEqual(exc_info.exception.code, http_client.BAD_REQUEST)
+
+        exc_job_instance = getattr(exc_info.exception, "query_job", None)
+        self.assertIs(exc_job_instance, job)
+
+        full_text = str(exc_info.exception)
+        assert job.job_id in full_text
+        assert "Query Job SQL Follows" in full_text
+
+        for i, line in enumerate(query.splitlines(), start=1):
+            expected_line = "{}:{}".format(i, line)
+            assert expected_line in full_text
+
+    def test__begin_error(self):
+        from google.cloud import exceptions
+
+        query = textwrap.dedent(
+            """
+            SELECT foo, bar
+            FROM table_baz
+            WHERE foo == bar"""
+        )
+
+        client = _make_client(project=self.PROJECT)
+        job = self._make_one(self.JOB_ID, query, client)
+        call_api_patch = mock.patch(
+            "google.cloud.bigquery.client.Client._call_api",
+            autospec=True,
+            side_effect=exceptions.BadRequest("Syntax error in SQL query"),
+        )
+
+        with call_api_patch, self.assertRaises(exceptions.GoogleCloudError) as exc_info:
+            job.result()
+
+        self.assertIsInstance(exc_info.exception, exceptions.GoogleCloudError)
+        self.assertEqual(exc_info.exception.code, http_client.BAD_REQUEST)
+
+        exc_job_instance = getattr(exc_info.exception, "query_job", None)
+        self.assertIs(exc_job_instance, job)
+
+        full_text = str(exc_info.exception)
+        assert job.job_id in full_text
+        assert "Query Job SQL Follows" in full_text
+
+        for i, line in enumerate(query.splitlines(), start=1):
+            expected_line = "{}:{}".format(i, line)
+            assert expected_line in full_text
 
     def test_begin_w_bound_client(self):
         from google.cloud.bigquery.dataset import DatasetReference
@@ -4628,6 +4835,96 @@ class TestQueryJob(unittest.TestCase, _Base):
         )
         self._verifyResourceProperties(job, RESOURCE)
 
+    @unittest.skipIf(pyarrow is None, "Requires `pyarrow`")
+    def test_to_arrow(self):
+        begun_resource = self._make_resource()
+        query_resource = {
+            "jobComplete": True,
+            "jobReference": {"projectId": self.PROJECT, "jobId": self.JOB_ID},
+            "totalRows": "4",
+            "schema": {
+                "fields": [
+                    {
+                        "name": "spouse_1",
+                        "type": "RECORD",
+                        "fields": [
+                            {"name": "name", "type": "STRING", "mode": "NULLABLE"},
+                            {"name": "age", "type": "INTEGER", "mode": "NULLABLE"},
+                        ],
+                    },
+                    {
+                        "name": "spouse_2",
+                        "type": "RECORD",
+                        "fields": [
+                            {"name": "name", "type": "STRING", "mode": "NULLABLE"},
+                            {"name": "age", "type": "INTEGER", "mode": "NULLABLE"},
+                        ],
+                    },
+                ]
+            },
+        }
+        tabledata_resource = {
+            "rows": [
+                {
+                    "f": [
+                        {"v": {"f": [{"v": "Phred Phlyntstone"}, {"v": "32"}]}},
+                        {"v": {"f": [{"v": "Wylma Phlyntstone"}, {"v": "29"}]}},
+                    ]
+                },
+                {
+                    "f": [
+                        {"v": {"f": [{"v": "Bhettye Rhubble"}, {"v": "27"}]}},
+                        {"v": {"f": [{"v": "Bharney Rhubble"}, {"v": "33"}]}},
+                    ]
+                },
+            ]
+        }
+        done_resource = copy.deepcopy(begun_resource)
+        done_resource["status"] = {"state": "DONE"}
+        connection = _make_connection(
+            begun_resource, query_resource, done_resource, tabledata_resource
+        )
+        client = _make_client(project=self.PROJECT, connection=connection)
+        job = self._make_one(self.JOB_ID, self.QUERY, client)
+
+        tbl = job.to_arrow()
+
+        self.assertIsInstance(tbl, pyarrow.Table)
+        self.assertEqual(tbl.num_rows, 2)
+
+        # Check the schema.
+        self.assertEqual(tbl.schema[0].name, "spouse_1")
+        self.assertEqual(tbl.schema[0].type[0].name, "name")
+        self.assertEqual(tbl.schema[0].type[1].name, "age")
+        self.assertTrue(pyarrow.types.is_struct(tbl.schema[0].type))
+        self.assertTrue(pyarrow.types.is_string(tbl.schema[0].type[0].type))
+        self.assertTrue(pyarrow.types.is_int64(tbl.schema[0].type[1].type))
+        self.assertEqual(tbl.schema[1].name, "spouse_2")
+        self.assertEqual(tbl.schema[1].type[0].name, "name")
+        self.assertEqual(tbl.schema[1].type[1].name, "age")
+        self.assertTrue(pyarrow.types.is_struct(tbl.schema[1].type))
+        self.assertTrue(pyarrow.types.is_string(tbl.schema[1].type[0].type))
+        self.assertTrue(pyarrow.types.is_int64(tbl.schema[1].type[1].type))
+
+        # Check the data.
+        tbl_data = tbl.to_pydict()
+        spouse_1 = tbl_data["spouse_1"]
+        self.assertEqual(
+            spouse_1,
+            [
+                {"name": "Phred Phlyntstone", "age": 32},
+                {"name": "Bhettye Rhubble", "age": 27},
+            ],
+        )
+        spouse_2 = tbl_data["spouse_2"]
+        self.assertEqual(
+            spouse_2,
+            [
+                {"name": "Wylma Phlyntstone", "age": 29},
+                {"name": "Bharney Rhubble", "age": 33},
+            ],
+        )
+
     @unittest.skipIf(pandas is None, "Requires `pandas`")
     def test_to_dataframe(self):
         begun_resource = self._make_resource()
@@ -4641,17 +4938,19 @@ class TestQueryJob(unittest.TestCase, _Base):
                     {"name": "age", "type": "INTEGER", "mode": "NULLABLE"},
                 ]
             },
+        }
+        tabledata_resource = {
             "rows": [
                 {"f": [{"v": "Phred Phlyntstone"}, {"v": "32"}]},
                 {"f": [{"v": "Bharney Rhubble"}, {"v": "33"}]},
                 {"f": [{"v": "Wylma Phlyntstone"}, {"v": "29"}]},
                 {"f": [{"v": "Bhettye Rhubble"}, {"v": "27"}]},
-            ],
+            ]
         }
         done_resource = copy.deepcopy(begun_resource)
         done_resource["status"] = {"state": "DONE"}
         connection = _make_connection(
-            begun_resource, query_resource, done_resource, query_resource
+            begun_resource, query_resource, done_resource, tabledata_resource
         )
         client = _make_client(project=self.PROJECT, connection=connection)
         job = self._make_one(self.JOB_ID, self.QUERY, client)
@@ -4720,6 +5019,7 @@ class TestQueryJob(unittest.TestCase, _Base):
         bqstorage_client.create_read_session.assert_called_once_with(
             mock.ANY,
             "projects/{}".format(self.PROJECT),
+            format_=bigquery_storage_v1beta1.enums.DataFormat.ARROW,
             read_options=mock.ANY,
             # Use default number of streams for best performance.
             requested_streams=0,
@@ -5163,6 +5463,7 @@ def test_to_dataframe_bqstorage_preserve_order(query):
     bqstorage_client.create_read_session.assert_called_once_with(
         mock.ANY,
         "projects/test-project",
+        format_=bigquery_storage_v1beta1.enums.DataFormat.ARROW,
         read_options=mock.ANY,
         # Use a single stream to preserve row order.
         requested_streams=1,

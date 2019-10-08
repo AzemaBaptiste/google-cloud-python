@@ -84,7 +84,7 @@ If you need different batching settings, simply provide a
     from google.cloud.pubsub import types
 
     client = pubsub.PublisherClient(
-        batch_settings=BatchSettings(max_messages=500),
+        batch_settings=types.BatchSettings(max_messages=500),
     )
 
 Pub/Sub accepts a maximum of 1,000 messages in a batch, and the size of a
@@ -95,7 +95,7 @@ Futures
 -------
 
 Every call to :meth:`~.pubsub_v1.publisher.client.Client.publish` returns
-an instance of :class:`google.api_core.future.Future`.
+an instance of :class:`~.pubsub_v1.publisher.futures.Future`.
 
 .. note::
    
@@ -135,3 +135,4 @@ API Reference
   :maxdepth: 2
 
   api/client
+  api/futures

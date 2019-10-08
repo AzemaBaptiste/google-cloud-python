@@ -4,6 +4,107 @@
 
 [1]: https://pypi.org/project/google-cloud-storage/#history
 
+## 1.20.0
+
+09-26-2019 06:45 PDT
+
+
+### New Features
+- Add `user_project` param to HMAC-related methods. ([#9237](https://github.com/googleapis/google-cloud-python/pull/9237))
+- Add `Blob.from_string` and `Bucket.from_string` factories. ([#9143](https://github.com/googleapis/google-cloud-python/pull/9143))
+
+### Documentation
+- Fix intersphinx reference to `requests`. ([#9294](https://github.com/googleapis/google-cloud-python/pull/9294))
+- Fix deep / broken URL for service account setup. ([#9164](https://github.com/googleapis/google-cloud-python/pull/9164))
+
+### Internal / Testing Changes
+- Fix typo in `_helpers.py`. ([#9239](https://github.com/googleapis/google-cloud-python/pull/9239))
+- In systests, retry bucket creation on 503. ([#9248](https://github.com/googleapis/google-cloud-python/pull/9248))
+- Avoid using `REGIONAL` / `MULTI_REGIONAL` in examples, tests. ([#9205](https://github.com/googleapis/google-cloud-python/pull/9205))
+- Move `benchwrapper` into `tests/perf`. ([#9246](https://github.com/googleapis/google-cloud-python/pull/9246))
+- Add support for `STORAGE_EMULATOR_HOST`; add `benchwrapper` script. ([#9219](https://github.com/googleapis/google-cloud-python/pull/9219))
+
+
+## 1.19.0
+
+08-28-2019 09:45 PDT
+
+### Implementation Changes
+- Expose 'HMACKeyMetadata.id' field. ([#9115](https://github.com/googleapis/google-cloud-python/pull/9115))
+- Make 'Blob.bucket' a readonly property. ([#9113](https://github.com/googleapis/google-cloud-python/pull/9113))
+- Clarify 'response_type' for signed_url methods. ([#8942](https://github.com/googleapis/google-cloud-python/pull/8942))
+
+### New Features
+- Add `client_options` to constructors for manual clients. ([#9054](https://github.com/googleapis/google-cloud-python/pull/9054))
+
+### Documentation
+- Remove compatability badges from READMEs. ([#9035](https://github.com/googleapis/google-cloud-python/pull/9035))
+
+### Internal / Testing Changes
+- Remove CI for gh-pages, use googleapis.dev for api_core refs. ([#9085](https://github.com/googleapis/google-cloud-python/pull/9085))
+- Fix tests broken by yesterday's google-resumable-media release. ([#9119](https://github.com/googleapis/google-cloud-python/pull/9119))
+- Harden 'test_access_to_public_bucket' systest against 429 / 503 errors. ([#8997](https://github.com/googleapis/google-cloud-python/pull/8997))
+
+## 1.18.0
+
+08-07-2019 00:37 PDT
+
+
+### New Features
+- Add HMAC key support. ([#8430](https://github.com/googleapis/google-cloud-python/pull/8430))
+
+### Documentation
+- Mark old storage classes as legacy, not deprecated. ([#8887](https://github.com/googleapis/google-cloud-python/pull/8887))
+
+### Internal / Testing Changes
+- Normalize 'lint' / 'blacken' support under nox. ([#8831](https://github.com/googleapis/google-cloud-python/pull/8831))
+- Update intersphinx mapping for requests. ([#8805](https://github.com/googleapis/google-cloud-python/pull/8805))
+
+## 1.17.0
+
+07-24-2019 12:37 PDT
+
+
+### New Features
+- Add `Bucket.location_type` property. ([#8570](https://github.com/googleapis/google-cloud-python/pull/8570))
+- Add `Client.list_blobs(bucket_or_name)`. ([#8375](https://github.com/googleapis/google-cloud-python/pull/8375))
+
+
+### Implementation Changes
+- Retry bucket creation in signing setup. ([#8620](https://github.com/googleapis/google-cloud-python/pull/8620))
+- Fix URI -> blob name conversion in `Client download_blob_to_file`. ([#8440](https://github.com/googleapis/google-cloud-python/pull/8440))
+- Avoid escaping tilde in blob public / signed URLs. ([#8434](https://github.com/googleapis/google-cloud-python/pull/8434))
+- Add generation to 'Blob.__repr__'. ([#8423](https://github.com/googleapis/google-cloud-python/pull/8423))
+
+### Documentation
+- Link to googleapis.dev documentation in READMEs. ([#8705](https://github.com/googleapis/google-cloud-python/pull/8705))
+- Add compatibility check badges to READMEs. ([#8288](https://github.com/googleapis/google-cloud-python/pull/8288))
+- Fix example in `Client.download_blob_to_file` docstring. ([#8629](https://github.com/googleapis/google-cloud-python/pull/8629))
+- Remove typing information for kwargs to not conflict with type checkers ([#8546](https://github.com/googleapis/google-cloud-python/pull/8546))
+
+### Internal / Testing Changes
+- Skip failing `test_bpo_set_unset_preserves_acls` systest. ([#8617](https://github.com/googleapis/google-cloud-python/pull/8617))
+- Add nox session 'docs'. ([#8478](https://github.com/googleapis/google-cloud-python/pull/8478))
+- Add docs job to publish to googleapis.dev. ([#8464](https://github.com/googleapis/google-cloud-python/pull/8464))
+
+## 1.16.1
+
+06-04-2019 11:09 PDT
+
+
+### Dependencies
+- Don't pin `google-api-core` in libs using `google-cloud-core`. ([#8213](https://github.com/googleapis/google-cloud-python/pull/8213))
+
+### Documentation
+- Fix example in `download_blob_to_file` docstring. ([#8201](https://github.com/googleapis/google-cloud-python/pull/8201))
+- Tweak `fields` docstring further. ([#8040](https://github.com/googleapis/google-cloud-python/pull/8040))
+- Improve docs for `fields` argument to `Bucket.list_blobs`. ([#8023](https://github.com/googleapis/google-cloud-python/pull/8023))
+- Fix docs typo. ([#8027](https://github.com/googleapis/google-cloud-python/pull/8027))
+
+### Internal / Testing Changes
+- Retry harder in face of 409/429 during module teardown. ([#8113](https://github.com/googleapis/google-cloud-python/pull/8113))
+- Add more retries for 429s during teardown operations. ([#8112](https://github.com/googleapis/google-cloud-python/pull/8112))
+
 ## 1.16.0
 
 05-16-2019 12:55 PDT

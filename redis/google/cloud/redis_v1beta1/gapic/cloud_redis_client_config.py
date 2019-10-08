@@ -17,16 +17,6 @@ config = {
                 }
             },
             "methods": {
-                "ListInstances": {
-                    "timeout_millis": 60000,
-                    "retry_codes_name": "non_idempotent",
-                    "retry_params_name": "default",
-                },
-                "GetInstance": {
-                    "timeout_millis": 60000,
-                    "retry_codes_name": "non_idempotent",
-                    "retry_params_name": "default",
-                },
                 "CreateInstance": {
                     "timeout_millis": 60000,
                     "retry_codes_name": "non_idempotent",
@@ -37,12 +27,32 @@ config = {
                     "retry_codes_name": "non_idempotent",
                     "retry_params_name": "default",
                 },
-                "DeleteInstance": {
+                "ListInstances": {
+                    "timeout_millis": 60000,
+                    "retry_codes_name": "idempotent",
+                    "retry_params_name": "default",
+                },
+                "GetInstance": {
+                    "timeout_millis": 60000,
+                    "retry_codes_name": "idempotent",
+                    "retry_params_name": "default",
+                },
+                "ImportInstance": {
+                    "timeout_millis": 60000,
+                    "retry_codes_name": "non_idempotent",
+                    "retry_params_name": "default",
+                },
+                "ExportInstance": {
                     "timeout_millis": 60000,
                     "retry_codes_name": "non_idempotent",
                     "retry_params_name": "default",
                 },
                 "FailoverInstance": {
+                    "timeout_millis": 60000,
+                    "retry_codes_name": "non_idempotent",
+                    "retry_params_name": "default",
+                },
+                "DeleteInstance": {
                     "timeout_millis": 60000,
                     "retry_codes_name": "non_idempotent",
                     "retry_params_name": "default",

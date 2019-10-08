@@ -21,6 +21,7 @@ import pkg_resources
 import warnings
 
 from google.oauth2 import service_account
+import google.api_core.client_options
 import google.api_core.gapic_v1.client_info
 import google.api_core.gapic_v1.config
 import google.api_core.gapic_v1.method
@@ -110,6 +111,7 @@ class WorkflowTemplateServiceClient(object):
         credentials=None,
         client_config=None,
         client_info=None,
+        client_options=None,
     ):
         """Constructor.
 
@@ -140,6 +142,9 @@ class WorkflowTemplateServiceClient(object):
                 API requests. If ``None``, then default info will be used.
                 Generally, you only need to set this if you're developing
                 your own client library.
+            client_options (Union[dict, google.api_core.client_options.ClientOptions]):
+                Client options used to set user options on the client. API Endpoint
+                should be set through client_options.
         """
         # Raise deprecation warnings for things we want to go away.
         if client_config is not None:
@@ -158,6 +163,15 @@ class WorkflowTemplateServiceClient(object):
                 stacklevel=2,
             )
 
+        api_endpoint = self.SERVICE_ADDRESS
+        if client_options:
+            if type(client_options) == dict:
+                client_options = google.api_core.client_options.from_dict(
+                    client_options
+                )
+            if client_options.api_endpoint:
+                api_endpoint = client_options.api_endpoint
+
         # Instantiate the transport.
         # The transport is responsible for handling serialization and
         # deserialization and actually sending data to the service.
@@ -166,6 +180,7 @@ class WorkflowTemplateServiceClient(object):
                 self.transport = transport(
                     credentials=credentials,
                     default_class=workflow_template_service_grpc_transport.WorkflowTemplateServiceGrpcTransport,
+                    address=api_endpoint,
                 )
             else:
                 if credentials:
@@ -176,7 +191,7 @@ class WorkflowTemplateServiceClient(object):
                 self.transport = transport
         else:
             self.transport = workflow_template_service_grpc_transport.WorkflowTemplateServiceGrpcTransport(
-                address=self.SERVICE_ADDRESS, channel=channel, credentials=credentials
+                address=api_endpoint, channel=channel, credentials=credentials
             )
 
         if client_info is None:
@@ -226,16 +241,23 @@ class WorkflowTemplateServiceClient(object):
             >>> response = client.create_workflow_template(parent, template)
 
         Args:
-            parent (str): Required. The "resource name" of the region, as described in
-                https://cloud.google.com/apis/design/resource\_names of the form
-                ``projects/{project_id}/regions/{region}``
+            parent (str): Required. The resource name of the region or location, as described in
+                https://cloud.google.com/apis/design/resource\_names.
+
+                -  For ``projects.regions.workflowTemplates,create``, the resource name
+                   of the region has the following format:
+                   ``projects/{project_id}/regions/{region}``
+
+                -  For ``projects.locations.workflowTemplates.create``, the resource
+                   name of the location has the following format:
+                   ``projects/{project_id}/locations/{location}``
             template (Union[dict, ~google.cloud.dataproc_v1.types.WorkflowTemplate]): Required. The Dataproc workflow template to create.
 
                 If a dict is provided, it must be of the same form as the protobuf
                 message :class:`~google.cloud.dataproc_v1.types.WorkflowTemplate`
             retry (Optional[google.api_core.retry.Retry]):  A retry object used
-                to retry requests. If ``None`` is specified, requests will not
-                be retried.
+                to retry requests. If ``None`` is specified, requests will
+                be retried using a default configuration.
             timeout (Optional[float]): The amount of time, in seconds, to wait
                 for the request to complete. Note that if ``retry`` is
                 specified, the timeout applies to each individual attempt.
@@ -307,16 +329,23 @@ class WorkflowTemplateServiceClient(object):
             >>> response = client.get_workflow_template(name)
 
         Args:
-            name (str): Required. The "resource name" of the workflow template, as described in
-                https://cloud.google.com/apis/design/resource\_names of the form
-                ``projects/{project_id}/regions/{region}/workflowTemplates/{template_id}``
+            name (str): Required. The resource name of the workflow template, as described in
+                https://cloud.google.com/apis/design/resource\_names.
+
+                -  For ``projects.regions.workflowTemplates.get``, the resource name of
+                   the template has the following format:
+                   ``projects/{project_id}/regions/{region}/workflowTemplates/{template_id}``
+
+                -  For ``projects.locations.workflowTemplates.get``, the resource name
+                   of the template has the following format:
+                   ``projects/{project_id}/locations/{location}/workflowTemplates/{template_id}``
             version (int): Optional. The version of workflow template to retrieve. Only previously
-                instatiated versions can be retrieved.
+                instantiated versions can be retrieved.
 
                 If unspecified, retrieves the current version.
             retry (Optional[google.api_core.retry.Retry]):  A retry object used
-                to retry requests. If ``None`` is specified, requests will not
-                be retried.
+                to retry requests. If ``None`` is specified, requests will
+                be retried using a default configuration.
             timeout (Optional[float]): The amount of time, in seconds, to wait
                 for the request to complete. Note that if ``retry`` is
                 specified, the timeout applies to each individual attempt.
@@ -385,7 +414,10 @@ class WorkflowTemplateServiceClient(object):
         cause any inflight jobs to be cancelled and workflow-owned clusters to
         be deleted.
 
-        The ``Operation.metadata`` will be ``WorkflowMetadata``.
+        The ``Operation.metadata`` will be
+        `WorkflowMetadata <https://cloud.google.com/dataproc/docs/reference/rpc/google.cloud.dataproc.v1#workflowmetadata>`__.
+        Also see `Using
+        WorkflowMetadata <https://cloud.google.com/dataproc/docs/concepts/workflows/debugging#using_workflowmetadata>`__.
 
         On successful completion, ``Operation.response`` will be ``Empty``.
 
@@ -408,9 +440,16 @@ class WorkflowTemplateServiceClient(object):
             >>> metadata = response.metadata()
 
         Args:
-            name (str): Required. The "resource name" of the workflow template, as described in
-                https://cloud.google.com/apis/design/resource\_names of the form
-                ``projects/{project_id}/regions/{region}/workflowTemplates/{template_id}``
+            name (str): Required. The resource name of the workflow template, as described in
+                https://cloud.google.com/apis/design/resource\_names.
+
+                -  For ``projects.regions.workflowTemplates.instantiate``, the resource
+                   name of the template has the following format:
+                   ``projects/{project_id}/regions/{region}/workflowTemplates/{template_id}``
+
+                -  For ``projects.locations.workflowTemplates.instantiate``, the
+                   resource name of the template has the following format:
+                   ``projects/{project_id}/locations/{location}/workflowTemplates/{template_id}``
             version (int): Optional. The version of workflow template to instantiate. If specified,
                 the workflow will be instantiated only if the current version of
                 the workflow template has the supplied version.
@@ -429,8 +468,8 @@ class WorkflowTemplateServiceClient(object):
             parameters (dict[str -> str]): Optional. Map from parameter names to values that should be used for those
                 parameters. Values may not exceed 100 characters.
             retry (Optional[google.api_core.retry.Retry]):  A retry object used
-                to retry requests. If ``None`` is specified, requests will not
-                be retried.
+                to retry requests. If ``None`` is specified, requests will
+                be retried using a default configuration.
             timeout (Optional[float]): The amount of time, in seconds, to wait
                 for the request to complete. Note that if ``retry`` is
                 specified, the timeout applies to each individual attempt.
@@ -510,7 +549,10 @@ class WorkflowTemplateServiceClient(object):
         cause any inflight jobs to be cancelled and workflow-owned clusters to
         be deleted.
 
-        The ``Operation.metadata`` will be ``WorkflowMetadata``.
+        The ``Operation.metadata`` will be
+        `WorkflowMetadata <https://cloud.google.com/dataproc/docs/reference/rpc/google.cloud.dataproc.v1#workflowmetadata>`__.
+        Also see `Using
+        WorkflowMetadata <https://cloud.google.com/dataproc/docs/concepts/workflows/debugging#using_workflowmetadata>`__.
 
         On successful completion, ``Operation.response`` will be ``Empty``.
 
@@ -536,9 +578,16 @@ class WorkflowTemplateServiceClient(object):
             >>> metadata = response.metadata()
 
         Args:
-            parent (str): Required. The "resource name" of the workflow template region, as
-                described in https://cloud.google.com/apis/design/resource\_names of the
-                form ``projects/{project_id}/regions/{region}``
+            parent (str): Required. The resource name of the region or location, as described in
+                https://cloud.google.com/apis/design/resource\_names.
+
+                -  For ``projects.regions.workflowTemplates,instantiateinline``, the
+                   resource name of the region has the following format:
+                   ``projects/{project_id}/regions/{region}``
+
+                -  For ``projects.locations.workflowTemplates.instantiateinline``, the
+                   resource name of the location has the following format:
+                   ``projects/{project_id}/locations/{location}``
             template (Union[dict, ~google.cloud.dataproc_v1.types.WorkflowTemplate]): Required. The workflow template to instantiate.
 
                 If a dict is provided, it must be of the same form as the protobuf
@@ -553,8 +602,8 @@ class WorkflowTemplateServiceClient(object):
                 The tag must contain only letters (a-z, A-Z), numbers (0-9), underscores
                 (\_), and hyphens (-). The maximum length is 40 characters.
             retry (Optional[google.api_core.retry.Retry]):  A retry object used
-                to retry requests. If ``None`` is specified, requests will not
-                be retried.
+                to retry requests. If ``None`` is specified, requests will
+                be retried using a default configuration.
             timeout (Optional[float]): The amount of time, in seconds, to wait
                 for the request to complete. Note that if ``retry`` is
                 specified, the timeout applies to each individual attempt.
@@ -641,8 +690,8 @@ class WorkflowTemplateServiceClient(object):
                 If a dict is provided, it must be of the same form as the protobuf
                 message :class:`~google.cloud.dataproc_v1.types.WorkflowTemplate`
             retry (Optional[google.api_core.retry.Retry]):  A retry object used
-                to retry requests. If ``None`` is specified, requests will not
-                be retried.
+                to retry requests. If ``None`` is specified, requests will
+                be retried using a default configuration.
             timeout (Optional[float]): The amount of time, in seconds, to wait
                 for the request to complete. Note that if ``retry`` is
                 specified, the timeout applies to each individual attempt.
@@ -723,17 +772,24 @@ class WorkflowTemplateServiceClient(object):
             ...         pass
 
         Args:
-            parent (str): Required. The "resource name" of the region, as described in
-                https://cloud.google.com/apis/design/resource\_names of the form
-                ``projects/{project_id}/regions/{region}``
+            parent (str): Required. The resource name of the region or location, as described in
+                https://cloud.google.com/apis/design/resource\_names.
+
+                -  For ``projects.regions.workflowTemplates,list``, the resource name of
+                   the region has the following format:
+                   ``projects/{project_id}/regions/{region}``
+
+                -  For ``projects.locations.workflowTemplates.list``, the resource name
+                   of the location has the following format:
+                   ``projects/{project_id}/locations/{location}``
             page_size (int): The maximum number of resources contained in the
                 underlying API response. If page streaming is performed per-
                 resource, this parameter does not affect the return value. If page
                 streaming is performed per-page, this determines the maximum number
                 of resources in a page.
             retry (Optional[google.api_core.retry.Retry]):  A retry object used
-                to retry requests. If ``None`` is specified, requests will not
-                be retried.
+                to retry requests. If ``None`` is specified, requests will
+                be retried using a default configuration.
             timeout (Optional[float]): The amount of time, in seconds, to wait
                 for the request to complete. Note that if ``retry`` is
                 specified, the timeout applies to each individual attempt.
@@ -741,10 +797,10 @@ class WorkflowTemplateServiceClient(object):
                 that is provided to the method.
 
         Returns:
-            A :class:`~google.gax.PageIterator` instance. By default, this
-            is an iterable of :class:`~google.cloud.dataproc_v1.types.WorkflowTemplate` instances.
-            This object can also be configured to iterate over the pages
-            of the response through the `options` parameter.
+            A :class:`~google.api_core.page_iterator.PageIterator` instance.
+            An iterable of :class:`~google.cloud.dataproc_v1.types.WorkflowTemplate` instances.
+            You can also iterate over the pages of the response
+            using its `pages` property.
 
         Raises:
             google.api_core.exceptions.GoogleAPICallError: If the request
@@ -816,15 +872,22 @@ class WorkflowTemplateServiceClient(object):
             >>> client.delete_workflow_template(name)
 
         Args:
-            name (str): Required. The "resource name" of the workflow template, as described in
-                https://cloud.google.com/apis/design/resource\_names of the form
-                ``projects/{project_id}/regions/{region}/workflowTemplates/{template_id}``
+            name (str): Required. The resource name of the workflow template, as described in
+                https://cloud.google.com/apis/design/resource\_names.
+
+                -  For ``projects.regions.workflowTemplates.delete``, the resource name
+                   of the template has the following format:
+                   ``projects/{project_id}/regions/{region}/workflowTemplates/{template_id}``
+
+                -  For ``projects.locations.workflowTemplates.instantiate``, the
+                   resource name of the template has the following format:
+                   ``projects/{project_id}/locations/{location}/workflowTemplates/{template_id}``
             version (int): Optional. The version of workflow template to delete. If specified,
                 will only delete the template if the current server version matches
                 specified version.
             retry (Optional[google.api_core.retry.Retry]):  A retry object used
-                to retry requests. If ``None`` is specified, requests will not
-                be retried.
+                to retry requests. If ``None`` is specified, requests will
+                be retried using a default configuration.
             timeout (Optional[float]): The amount of time, in seconds, to wait
                 for the request to complete. Note that if ``retry`` is
                 specified, the timeout applies to each individual attempt.

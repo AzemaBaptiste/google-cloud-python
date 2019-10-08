@@ -4,6 +4,78 @@
 
 [1]: https://pypi.org/project/google-api-core/#history
 
+## 1.14.3
+
+10-07-2019 10:35 PDT
+
+
+### Implementation Changes
+- Finalize during close of 'ResumableBidiRpc' ([#9337](https://github.com/googleapis/google-cloud-python/pull/9337))
+- add on_error to Retry.__init__ ([#8892](https://github.com/googleapis/google-cloud-python/pull/8892))
+- Fix race in 'BackgroundConsumer._thread_main'. ([#8883](https://github.com/googleapis/google-cloud-python/pull/8883))
+
+### Documentation
+- Fix intersphinx reference to requests ([#9294](https://github.com/googleapis/google-cloud-python/pull/9294))
+- Fix broken links in docs. ([#9148](https://github.com/googleapis/google-cloud-python/pull/9148))
+- About of time -> amount of time ([#9052](https://github.com/googleapis/google-cloud-python/pull/9052))
+- Remove compatability badges from READMEs. ([#9035](https://github.com/googleapis/google-cloud-python/pull/9035))
+
+### Internal / Testing Changes
+- Remove CI for gh-pages, use googleapis.dev for api_core refs. ([#9085](https://github.com/googleapis/google-cloud-python/pull/9085))
+
+## 1.14.2
+
+07-30-2019 14:08 PDT
+
+
+### Documentation
+- Add client_options documentation. ([#8834](https://github.com/googleapis/google-cloud-python/pull/8834))
+
+## 1.14.1
+
+07-30-2019 12:24 PDT
+
+
+### Implementation Changes
+- Remove error log entry on clean BiDi shutdown. ([#8806](https://github.com/googleapis/google-cloud-python/pull/8806))
+- Forward 'timeout' arg from 'exception' to `_blocking_poll`. ([#8735](https://github.com/googleapis/google-cloud-python/pull/8735))
+
+### Documentation
+- Update intersphinx mapping for requests. ([#8805](https://github.com/googleapis/google-cloud-python/pull/8805))
+- Link to googleapis.dev documentation in READMEs. ([#8705](https://github.com/googleapis/google-cloud-python/pull/8705))
+
+## 1.14.0
+
+07-17-2019 13:16 PDT
+
+
+### New Features
+- Firestore: Add `should_terminate` predicate for clean BiDi shutdown. ([#8650](https://github.com/googleapis/google-cloud-python/pull/8650))
+
+### Dependencies
+- Update pins of 'googleapis-common-protos. ([#8688](https://github.com/googleapis/google-cloud-python/pull/8688))
+
+### Documentation
+- Add compatibility check badges to READMEs. ([#8288](https://github.com/googleapis/google-cloud-python/pull/8288))
+
+### Internal / Testing Changes
+- All: Add docs job to publish to googleapis.dev. ([#8464](https://github.com/googleapis/google-cloud-python/pull/8464))
+
+## 1.13.0
+
+06-24-2019 10:34 PDT
+
+### New Features
+- Add `client_options.ClientOptions` object. ([#8265](https://github.com/googleapis/google-cloud-python/pull/8265))
+
+## 1.12.0
+
+06-18-2019 12:37 PDT
+
+
+### New Features
+- Add Throttling to Bidi Reopening. Mitigates ResumableBidiRpc consuming 100% CPU ([#8193](https://github.com/googleapis/google-cloud-python/pull/8193))
+
 ## 1.11.1
 
 05-28-2019 11:19 PDT

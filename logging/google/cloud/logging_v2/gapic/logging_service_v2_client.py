@@ -21,6 +21,7 @@ import pkg_resources
 import warnings
 
 from google.oauth2 import service_account
+import google.api_core.client_options
 import google.api_core.gapic_v1.client_info
 import google.api_core.gapic_v1.config
 import google.api_core.gapic_v1.method
@@ -35,9 +36,12 @@ from google.cloud.logging_v2.gapic import enums
 from google.cloud.logging_v2.gapic import logging_service_v2_client_config
 from google.cloud.logging_v2.gapic.transports import logging_service_v2_grpc_transport
 from google.cloud.logging_v2.proto import log_entry_pb2
+from google.cloud.logging_v2.proto import logging_config_pb2
+from google.cloud.logging_v2.proto import logging_config_pb2_grpc
 from google.cloud.logging_v2.proto import logging_pb2
 from google.cloud.logging_v2.proto import logging_pb2_grpc
 from google.protobuf import empty_pb2
+from google.protobuf import field_mask_pb2
 
 
 _GAPIC_LIBRARY_VERSION = pkg_resources.get_distribution("google-cloud-logging").version
@@ -74,10 +78,54 @@ class LoggingServiceV2Client(object):
     from_service_account_json = from_service_account_file
 
     @classmethod
+    def billing_path(cls, billing_account):
+        """Return a fully-qualified billing string."""
+        return google.api_core.path_template.expand(
+            "billingAccounts/{billing_account}", billing_account=billing_account
+        )
+
+    @classmethod
+    def billing_log_path(cls, billing_account, log):
+        """Return a fully-qualified billing_log string."""
+        return google.api_core.path_template.expand(
+            "billingAccounts/{billing_account}/logs/{log}",
+            billing_account=billing_account,
+            log=log,
+        )
+
+    @classmethod
+    def folder_path(cls, folder):
+        """Return a fully-qualified folder string."""
+        return google.api_core.path_template.expand("folders/{folder}", folder=folder)
+
+    @classmethod
+    def folder_log_path(cls, folder, log):
+        """Return a fully-qualified folder_log string."""
+        return google.api_core.path_template.expand(
+            "folders/{folder}/logs/{log}", folder=folder, log=log
+        )
+
+    @classmethod
     def log_path(cls, project, log):
         """Return a fully-qualified log string."""
         return google.api_core.path_template.expand(
             "projects/{project}/logs/{log}", project=project, log=log
+        )
+
+    @classmethod
+    def organization_path(cls, organization):
+        """Return a fully-qualified organization string."""
+        return google.api_core.path_template.expand(
+            "organizations/{organization}", organization=organization
+        )
+
+    @classmethod
+    def organization_log_path(cls, organization, log):
+        """Return a fully-qualified organization_log string."""
+        return google.api_core.path_template.expand(
+            "organizations/{organization}/logs/{log}",
+            organization=organization,
+            log=log,
         )
 
     @classmethod
@@ -94,6 +142,7 @@ class LoggingServiceV2Client(object):
         credentials=None,
         client_config=None,
         client_info=None,
+        client_options=None,
     ):
         """Constructor.
 
@@ -124,6 +173,9 @@ class LoggingServiceV2Client(object):
                 API requests. If ``None``, then default info will be used.
                 Generally, you only need to set this if you're developing
                 your own client library.
+            client_options (Union[dict, google.api_core.client_options.ClientOptions]):
+                Client options used to set user options on the client. API Endpoint
+                should be set through client_options.
         """
         # Raise deprecation warnings for things we want to go away.
         if client_config is not None:
@@ -142,6 +194,15 @@ class LoggingServiceV2Client(object):
                 stacklevel=2,
             )
 
+        api_endpoint = self.SERVICE_ADDRESS
+        if client_options:
+            if type(client_options) == dict:
+                client_options = google.api_core.client_options.from_dict(
+                    client_options
+                )
+            if client_options.api_endpoint:
+                api_endpoint = client_options.api_endpoint
+
         # Instantiate the transport.
         # The transport is responsible for handling serialization and
         # deserialization and actually sending data to the service.
@@ -150,6 +211,7 @@ class LoggingServiceV2Client(object):
                 self.transport = transport(
                     credentials=credentials,
                     default_class=logging_service_v2_grpc_transport.LoggingServiceV2GrpcTransport,
+                    address=api_endpoint,
                 )
             else:
                 if credentials:
@@ -160,7 +222,7 @@ class LoggingServiceV2Client(object):
                 self.transport = transport
         else:
             self.transport = logging_service_v2_grpc_transport.LoggingServiceV2GrpcTransport(
-                address=self.SERVICE_ADDRESS, channel=channel, credentials=credentials
+                address=api_endpoint, channel=channel, credentials=credentials
             )
 
         if client_info is None:
@@ -223,8 +285,8 @@ class LoggingServiceV2Client(object):
                 ``"organizations/1234567890/logs/cloudresourcemanager.googleapis.com%2Factivity"``.
                 For more information about log names, see ``LogEntry``.
             retry (Optional[google.api_core.retry.Retry]):  A retry object used
-                to retry requests. If ``None`` is specified, requests will not
-                be retried.
+                to retry requests. If ``None`` is specified, requests will
+                be retried using a default configuration.
             timeout (Optional[float]): The amount of time, in seconds, to wait
                 for the request to complete. Note that if ``retry`` is
                 specified, the timeout applies to each individual attempt.
@@ -315,8 +377,8 @@ class LoggingServiceV2Client(object):
                 Log entries with timestamps that are more than the `logs retention
                 period <https://cloud.google.com/logging/quota-policy>`__ in the past or
                 more than 24 hours in the future will not be available when calling
-                ``entries.list``. However, those log entries can still be exported with
-                `LogSinks <https://cloud.google.com/logging/docs/api/tasks/exporting-logs>`__.
+                ``entries.list``. However, those log entries can still be `exported with
+                LogSinks <https://cloud.google.com/logging/docs/api/tasks/exporting-logs>`__.
 
                 To improve throughput and to avoid exceeding the `quota
                 limit <https://cloud.google.com/logging/quota-policy>`__ for calls to
@@ -374,8 +436,8 @@ class LoggingServiceV2Client(object):
                 entries won't be persisted nor exported. Useful for checking whether the
                 logging API endpoints are working properly before sending valuable data.
             retry (Optional[google.api_core.retry.Retry]):  A retry object used
-                to retry requests. If ``None`` is specified, requests will not
-                be retried.
+                to retry requests. If ``None`` is specified, requests will
+                be retried using a default configuration.
             timeout (Optional[float]): The amount of time, in seconds, to wait
                 for the request to complete. Note that if ``retry`` is
                 specified, the timeout applies to each individual attempt.
@@ -427,8 +489,9 @@ class LoggingServiceV2Client(object):
         metadata=None,
     ):
         """
-        Lists log entries. Use this method to retrieve log entries from Logging.
-        For ways to export log entries, see `Exporting
+        Lists log entries. Use this method to retrieve log entries that
+        originated from a project/folder/organization/billing account. For ways
+        to export log entries, see `Exporting
         Logs <https://cloud.google.com/logging/docs/export>`__.
 
         Example:
@@ -467,9 +530,7 @@ class LoggingServiceV2Client(object):
                 Projects listed in the ``project_ids`` field are added to this list.
             project_ids (list[str]): Deprecated. Use ``resource_names`` instead. One or more project
                 identifiers or project numbers from which to retrieve log entries.
-                Example: ``"my-project-1A"``. If present, these project identifiers are
-                converted to resource name format and added to the list of resources in
-                ``resource_names``.
+                Example: ``"my-project-1A"``.
             filter_ (str): Optional. A filter that chooses which log entries to return. See
                 `Advanced Logs
                 Filters <https://cloud.google.com/logging/docs/view/advanced_filters>`__.
@@ -491,8 +552,8 @@ class LoggingServiceV2Client(object):
                 streaming is performed per-page, this determines the maximum number
                 of resources in a page.
             retry (Optional[google.api_core.retry.Retry]):  A retry object used
-                to retry requests. If ``None`` is specified, requests will not
-                be retried.
+                to retry requests. If ``None`` is specified, requests will
+                be retried using a default configuration.
             timeout (Optional[float]): The amount of time, in seconds, to wait
                 for the request to complete. Note that if ``retry`` is
                 specified, the timeout applies to each individual attempt.
@@ -500,10 +561,10 @@ class LoggingServiceV2Client(object):
                 that is provided to the method.
 
         Returns:
-            A :class:`~google.gax.PageIterator` instance. By default, this
-            is an iterable of :class:`~google.cloud.logging_v2.types.LogEntry` instances.
-            This object can also be configured to iterate over the pages
-            of the response through the `options` parameter.
+            A :class:`~google.api_core.page_iterator.PageIterator` instance.
+            An iterable of :class:`~google.cloud.logging_v2.types.LogEntry` instances.
+            You can also iterate over the pages of the response
+            using its `pages` property.
 
         Raises:
             google.api_core.exceptions.GoogleAPICallError: If the request
@@ -581,8 +642,8 @@ class LoggingServiceV2Client(object):
                 streaming is performed per-page, this determines the maximum number
                 of resources in a page.
             retry (Optional[google.api_core.retry.Retry]):  A retry object used
-                to retry requests. If ``None`` is specified, requests will not
-                be retried.
+                to retry requests. If ``None`` is specified, requests will
+                be retried using a default configuration.
             timeout (Optional[float]): The amount of time, in seconds, to wait
                 for the request to complete. Note that if ``retry`` is
                 specified, the timeout applies to each individual attempt.
@@ -590,10 +651,10 @@ class LoggingServiceV2Client(object):
                 that is provided to the method.
 
         Returns:
-            A :class:`~google.gax.PageIterator` instance. By default, this
-            is an iterable of :class:`~google.cloud.logging_v2.types.MonitoredResourceDescriptor` instances.
-            This object can also be configured to iterate over the pages
-            of the response through the `options` parameter.
+            A :class:`~google.api_core.page_iterator.PageIterator` instance.
+            An iterable of :class:`~google.cloud.logging_v2.types.MonitoredResourceDescriptor` instances.
+            You can also iterate over the pages of the response
+            using its `pages` property.
 
         Raises:
             google.api_core.exceptions.GoogleAPICallError: If the request
@@ -683,8 +744,8 @@ class LoggingServiceV2Client(object):
                 streaming is performed per-page, this determines the maximum number
                 of resources in a page.
             retry (Optional[google.api_core.retry.Retry]):  A retry object used
-                to retry requests. If ``None`` is specified, requests will not
-                be retried.
+                to retry requests. If ``None`` is specified, requests will
+                be retried using a default configuration.
             timeout (Optional[float]): The amount of time, in seconds, to wait
                 for the request to complete. Note that if ``retry`` is
                 specified, the timeout applies to each individual attempt.
@@ -692,10 +753,10 @@ class LoggingServiceV2Client(object):
                 that is provided to the method.
 
         Returns:
-            A :class:`~google.gax.PageIterator` instance. By default, this
-            is an iterable of :class:`str` instances.
-            This object can also be configured to iterate over the pages
-            of the response through the `options` parameter.
+            A :class:`~google.api_core.page_iterator.PageIterator` instance.
+            An iterable of :class:`str` instances.
+            You can also iterate over the pages of the response
+            using its `pages` property.
 
         Raises:
             google.api_core.exceptions.GoogleAPICallError: If the request

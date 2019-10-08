@@ -59,7 +59,14 @@ class ClusterControllerGrpcTransport(object):
 
         # Create the channel.
         if channel is None:
-            channel = self.create_channel(address=address, credentials=credentials)
+            channel = self.create_channel(
+                address=address,
+                credentials=credentials,
+                options={
+                    "grpc.max_send_message_length": -1,
+                    "grpc.max_receive_message_length": -1,
+                }.items(),
+            )
 
         self._channel = channel
 
@@ -77,7 +84,9 @@ class ClusterControllerGrpcTransport(object):
         )
 
     @classmethod
-    def create_channel(cls, address="dataproc.googleapis.com:443", credentials=None):
+    def create_channel(
+        cls, address="dataproc.googleapis.com:443", credentials=None, **kwargs
+    ):
         """Create and return a gRPC channel object.
 
         Args:
@@ -87,12 +96,14 @@ class ClusterControllerGrpcTransport(object):
                 credentials identify this application to the service. If
                 none are specified, the client will attempt to ascertain
                 the credentials from the environment.
+            kwargs (dict): Keyword arguments, which are passed to the
+                channel creation.
 
         Returns:
             grpc.Channel: A gRPC channel object.
         """
         return google.api_core.grpc_helpers.create_channel(
-            address, credentials=credentials, scopes=cls._OAUTH_SCOPES
+            address, credentials=credentials, scopes=cls._OAUTH_SCOPES, **kwargs
         )
 
     @property
@@ -108,7 +119,9 @@ class ClusterControllerGrpcTransport(object):
     def create_cluster(self):
         """Return the gRPC stub for :meth:`ClusterControllerClient.create_cluster`.
 
-        Creates a cluster in a project.
+        Creates a cluster in a project. The returned ``Operation.metadata`` will
+        be
+        `ClusterOperationMetadata <https://cloud.google.com/dataproc/docs/reference/rpc/google.cloud.dataproc.v1#clusteroperationmetadata>`__.
 
         Returns:
             Callable: A callable which accepts the appropriate
@@ -121,7 +134,9 @@ class ClusterControllerGrpcTransport(object):
     def update_cluster(self):
         """Return the gRPC stub for :meth:`ClusterControllerClient.update_cluster`.
 
-        Updates a cluster in a project.
+        Updates a cluster in a project. The returned ``Operation.metadata`` will
+        be
+        `ClusterOperationMetadata <https://cloud.google.com/dataproc/docs/reference/rpc/google.cloud.dataproc.v1#clusteroperationmetadata>`__.
 
         Returns:
             Callable: A callable which accepts the appropriate
@@ -134,7 +149,9 @@ class ClusterControllerGrpcTransport(object):
     def delete_cluster(self):
         """Return the gRPC stub for :meth:`ClusterControllerClient.delete_cluster`.
 
-        Deletes a cluster in a project.
+        Deletes a cluster in a project. The returned ``Operation.metadata`` will
+        be
+        `ClusterOperationMetadata <https://cloud.google.com/dataproc/docs/reference/rpc/google.cloud.dataproc.v1#clusteroperationmetadata>`__.
 
         Returns:
             Callable: A callable which accepts the appropriate
@@ -173,8 +190,11 @@ class ClusterControllerGrpcTransport(object):
     def diagnose_cluster(self):
         """Return the gRPC stub for :meth:`ClusterControllerClient.diagnose_cluster`.
 
-        Gets cluster diagnostic information. After the operation completes, the
-        Operation.response field contains ``DiagnoseClusterOutputLocation``.
+        Gets cluster diagnostic information. The returned ``Operation.metadata``
+        will be
+        `ClusterOperationMetadata <https://cloud.google.com/dataproc/docs/reference/rpc/google.cloud.dataproc.v1#clusteroperationmetadata>`__.
+        After the operation completes, ``Operation.response`` contains
+        `DiagnoseClusterResults <https://cloud.google.com/dataproc/docs/reference/rpc/google.cloud.dataproc.v1#diagnoseclusterresults>`__.
 
         Returns:
             Callable: A callable which accepts the appropriate

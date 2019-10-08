@@ -20,14 +20,15 @@ Uses a background worker to log to Stackdriver Logging asynchronously.
 from __future__ import print_function
 
 import atexit
+import datetime
 import logging
 import sys
 import threading
 import time
 
-from six.moves import range
 from six.moves import queue
 
+from google.cloud.logging import _helpers
 from google.cloud.logging.handlers.transports.base import Transport
 
 _DEFAULT_GRACE_PERIOD = 5.0  # Seconds
@@ -56,8 +57,8 @@ def _get_many(queue_, max_items=None, max_latency=0):
         item from a queue. This number includes the time required to retrieve
         the first item.
 
-    :rtype: Sequence
-    :returns: A sequence of items retrieved from the queue.
+    :rtype: list
+    :returns: items retrieved from the queue.
     """
     start = time.time()
     # Always return at least one item.
@@ -132,8 +133,8 @@ class _Worker(object):
         """
         _LOGGER.debug("Background thread started.")
 
-        quit_ = False
-        while True:
+        done = False
+        while not done:
             batch = self._cloud_logger.batch()
             items = _get_many(
                 self._queue,
@@ -143,19 +144,14 @@ class _Worker(object):
 
             for item in items:
                 if item is _WORKER_TERMINATOR:
-                    quit_ = True
-                    # Continue processing items, don't break, try to process
-                    # all items we got back before quitting.
+                    done = True  # Continue processing items.
                 else:
                     batch.log_struct(**item)
 
             self._safely_commit_batch(batch)
 
-            for _ in range(len(items)):
+            for _ in items:
                 self._queue.task_done()
-
-            if quit_:
-                break
 
         _LOGGER.debug("Background thread exited gracefully.")
 
@@ -259,16 +255,16 @@ class _Worker(object):
         :param span_id: (optional) span_id within the trace for the log entry.
                         Specify the trace parameter if span_id is set.
         """
-        self._queue.put_nowait(
-            {
-                "info": {"message": message, "python_logger": record.name},
-                "severity": record.levelname,
-                "resource": resource,
-                "labels": labels,
-                "trace": trace,
-                "span_id": span_id,
-            }
-        )
+        queue_entry = {
+            "info": {"message": message, "python_logger": record.name},
+            "severity": _helpers._normalize_severity(record.levelno),
+            "resource": resource,
+            "labels": labels,
+            "trace": trace,
+            "span_id": span_id,
+            "timestamp": datetime.datetime.utcfromtimestamp(record.created),
+        }
+        self._queue.put_nowait(queue_entry)
 
     def flush(self):
         """Submit any pending log records."""

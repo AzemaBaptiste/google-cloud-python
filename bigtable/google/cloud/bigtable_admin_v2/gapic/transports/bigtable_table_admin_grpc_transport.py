@@ -69,7 +69,14 @@ class BigtableTableAdminGrpcTransport(object):
 
         # Create the channel.
         if channel is None:
-            channel = self.create_channel(address=address, credentials=credentials)
+            channel = self.create_channel(
+                address=address,
+                credentials=credentials,
+                options={
+                    "grpc.max_send_message_length": -1,
+                    "grpc.max_receive_message_length": -1,
+                }.items(),
+            )
 
         self._channel = channel
 
@@ -90,7 +97,7 @@ class BigtableTableAdminGrpcTransport(object):
 
     @classmethod
     def create_channel(
-        cls, address="bigtableadmin.googleapis.com:443", credentials=None
+        cls, address="bigtableadmin.googleapis.com:443", credentials=None, **kwargs
     ):
         """Create and return a gRPC channel object.
 
@@ -101,18 +108,14 @@ class BigtableTableAdminGrpcTransport(object):
                 credentials identify this application to the service. If
                 none are specified, the client will attempt to ascertain
                 the credentials from the environment.
+            kwargs (dict): Keyword arguments, which are passed to the
+                channel creation.
 
         Returns:
             grpc.Channel: A gRPC channel object.
         """
         return google.api_core.grpc_helpers.create_channel(
-            address,
-            credentials=credentials,
-            scopes=cls._OAUTH_SCOPES,
-            options={
-                "grpc.max_send_message_length": -1,
-                "grpc.max_receive_message_length": -1,
-            }.items(),
+            address, credentials=credentials, scopes=cls._OAUTH_SCOPES, **kwargs
         )
 
     @property
@@ -259,6 +262,47 @@ class BigtableTableAdminGrpcTransport(object):
                 deserialized response object.
         """
         return self._stubs["bigtable_table_admin_stub"].CheckConsistency
+
+    @property
+    def get_iam_policy(self):
+        """Return the gRPC stub for :meth:`BigtableTableAdminClient.get_iam_policy`.
+
+        Gets the access control policy for an instance resource. Returns an empty
+        policy if an table exists but does not have a policy set.
+
+        Returns:
+            Callable: A callable which accepts the appropriate
+                deserialized request object and returns a
+                deserialized response object.
+        """
+        return self._stubs["bigtable_table_admin_stub"].GetIamPolicy
+
+    @property
+    def set_iam_policy(self):
+        """Return the gRPC stub for :meth:`BigtableTableAdminClient.set_iam_policy`.
+
+        Sets the access control policy on a table resource. Replaces any existing
+        policy.
+
+        Returns:
+            Callable: A callable which accepts the appropriate
+                deserialized request object and returns a
+                deserialized response object.
+        """
+        return self._stubs["bigtable_table_admin_stub"].SetIamPolicy
+
+    @property
+    def test_iam_permissions(self):
+        """Return the gRPC stub for :meth:`BigtableTableAdminClient.test_iam_permissions`.
+
+        Returns permissions that the caller has on the specified table resource.
+
+        Returns:
+            Callable: A callable which accepts the appropriate
+                deserialized request object and returns a
+                deserialized response object.
+        """
+        return self._stubs["bigtable_table_admin_stub"].TestIamPermissions
 
     @property
     def snapshot_table(self):

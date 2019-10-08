@@ -46,28 +46,31 @@ from google.resumable_media.requests import Download
 from google.resumable_media.requests import MultipartUpload
 from google.resumable_media.requests import ResumableUpload
 
+from google.api_core.iam import Policy
 from google.cloud import exceptions
+from google.cloud._helpers import _bytes_to_unicode
 from google.cloud._helpers import _rfc3339_to_datetime
 from google.cloud._helpers import _to_bytes
-from google.cloud._helpers import _bytes_to_unicode
 from google.cloud.exceptions import NotFound
-from google.api_core.iam import Policy
+from google.cloud.storage._helpers import _get_storage_host
 from google.cloud.storage._helpers import _PropertyMixin
 from google.cloud.storage._helpers import _scalar_property
 from google.cloud.storage._signing import generate_signed_url_v2
 from google.cloud.storage._signing import generate_signed_url_v4
 from google.cloud.storage.acl import ACL
 from google.cloud.storage.acl import ObjectACL
+from google.cloud.storage.constants import STANDARD_STORAGE_CLASS
+from google.cloud.storage.constants import NEARLINE_STORAGE_CLASS
+from google.cloud.storage.constants import COLDLINE_STORAGE_CLASS
+from google.cloud.storage.constants import MULTI_REGIONAL_LEGACY_STORAGE_CLASS
+from google.cloud.storage.constants import REGIONAL_LEGACY_STORAGE_CLASS
 
+_STORAGE_HOST = _get_storage_host()
 
 _API_ACCESS_ENDPOINT = "https://storage.googleapis.com"
 _DEFAULT_CONTENT_TYPE = u"application/octet-stream"
-_DOWNLOAD_URL_TEMPLATE = (
-    u"https://www.googleapis.com/download/storage/v1{path}?alt=media"
-)
-_BASE_UPLOAD_TEMPLATE = (
-    u"https://www.googleapis.com/upload/storage/v1{bucket_path}/o?uploadType="
-)
+_DOWNLOAD_URL_TEMPLATE = _STORAGE_HOST + u"/download/storage/v1{path}?alt=media"
+_BASE_UPLOAD_TEMPLATE = _STORAGE_HOST + u"/upload/storage/v1{bucket_path}/o?uploadType="
 _MULTIPART_URL_TEMPLATE = _BASE_UPLOAD_TEMPLATE + u"multipart"
 _RESUMABLE_URL_TEMPLATE = _BASE_UPLOAD_TEMPLATE + u"resumable"
 # NOTE: "acl" is also writeable but we defer ACL management to
@@ -136,12 +139,12 @@ class Blob(_PropertyMixin):
     _CHUNK_SIZE_MULTIPLE = 256 * 1024
     """Number (256 KB, in bytes) that must divide the chunk size."""
 
-    _STORAGE_CLASSES = (
-        "NEARLINE",
-        "MULTI_REGIONAL",
-        "REGIONAL",
-        "COLDLINE",
-        "STANDARD",  # alias for MULTI_REGIONAL/REGIONAL, based on location
+    STORAGE_CLASSES = (
+        STANDARD_STORAGE_CLASS,
+        NEARLINE_STORAGE_CLASS,
+        COLDLINE_STORAGE_CLASS,
+        MULTI_REGIONAL_LEGACY_STORAGE_CLASS,
+        REGIONAL_LEGACY_STORAGE_CLASS,
     )
     """Allowed values for :attr:`storage_class`.
 
@@ -152,11 +155,6 @@ class Blob(_PropertyMixin):
     .. note::
        This list does not include 'DURABLE_REDUCED_AVAILABILITY', which
        is only documented for buckets (and deprecated).
-
-    .. note::
-       The documentation does *not* mention 'STANDARD', but it is the value
-       assigned by the back-end for objects created in buckets with 'STANDARD'
-       set as their 'storage_class'.
     """
 
     def __init__(
@@ -172,7 +170,7 @@ class Blob(_PropertyMixin):
         super(Blob, self).__init__(name=name)
 
         self.chunk_size = chunk_size  # Check that setter accepts value.
-        self.bucket = bucket
+        self._bucket = bucket
         self._acl = ObjectACL(self)
         if encryption_key is not None and kms_key_name is not None:
             raise ValueError(
@@ -186,6 +184,15 @@ class Blob(_PropertyMixin):
 
         if generation is not None:
             self._properties["generation"] = generation
+
+    @property
+    def bucket(self):
+        """Bucket which contains the object.
+
+        :rtype: :class:`~google.cloud.storage.bucket.Bucket`
+        :returns: The object's bucket.
+        """
+        return self._bucket
 
     @property
     def chunk_size(self):
@@ -238,7 +245,7 @@ class Blob(_PropertyMixin):
         else:
             bucket_name = None
 
-        return "<Blob: %s, %s>" % (bucket_name, self.name)
+        return "<Blob: %s, %s, %s>" % (bucket_name, self.name, self.generation)
 
     @property
     def path(self):
@@ -298,8 +305,39 @@ class Blob(_PropertyMixin):
         return "{storage_base_url}/{bucket_name}/{quoted_name}".format(
             storage_base_url=_API_ACCESS_ENDPOINT,
             bucket_name=self.bucket.name,
-            quoted_name=quote(self.name.encode("utf-8")),
+            quoted_name=_quote(self.name, safe=b"/~"),
         )
+
+    @classmethod
+    def from_string(cls, uri, client=None):
+        """Get a constructor for blob object by URI.
+
+         :type uri: str
+         :param uri: The blob uri pass to get blob object.
+
+         :type client: :class:`~google.cloud.storage.client.Client` or
+                      ``NoneType``
+         :param client: Optional. The client to use.
+
+         :rtype: :class:`google.cloud.storage.blob.Blob`
+         :returns: The blob object created.
+
+         Example:
+            Get a constructor for blob object by URI..
+
+            >>> from google.cloud import storage
+            >>> from google.cloud.storage.blob import Blob
+            >>> client = storage.Client()
+            >>> blob = Blob.from_string("gs://bucket/object")
+         """
+        from google.cloud.storage.bucket import Bucket
+
+        scheme, netloc, path, query, frag = urlsplit(uri)
+        if scheme != "gs":
+            raise ValueError("URI scheme must be gs")
+
+        bucket = Bucket(client, name=netloc)
+        return cls(path[1:], bucket)
 
     def generate_signed_url(
         self,
@@ -365,8 +403,8 @@ class Blob(_PropertyMixin):
 
         :type response_type: str
         :param response_type: (Optional) Content type of responses to requests
-                              for the signed URL. Used to over-ride the content
-                              type of the underlying blob/object.
+                              for the signed URL. Ignored if content_type is
+                              set on object/blob metadata.
 
         :type generation: str
         :param generation: (Optional) A value that indicates which generation
@@ -416,8 +454,9 @@ class Blob(_PropertyMixin):
         elif version not in ("v2", "v4"):
             raise ValueError("'version' must be either 'v2' or 'v4'")
 
+        quoted_name = _quote(self.name, safe=b"/~")
         resource = "/{bucket_name}/{quoted_name}".format(
-            bucket_name=self.bucket.name, quoted_name=quote(self.name.encode("utf-8"))
+            bucket_name=self.bucket.name, quoted_name=quoted_name
         )
 
         if credentials is None:
@@ -673,7 +712,7 @@ class Blob(_PropertyMixin):
             os.utime(file_obj.name, (mtime, mtime))
 
     def download_as_string(self, client=None, start=None, end=None):
-        """Download the contents of this blob as a string.
+        """Download the contents of this blob as a bytes object.
 
         If :attr:`user_project` is set on the bucket, bills the API request
         to that project.
@@ -1601,13 +1640,20 @@ class Blob(_PropertyMixin):
         to that project.
 
         :type new_class: str
-        :param new_class: new storage class for the object
+        :param new_class:
+            new storage class for the object.   One of:
+            :attr:`~google.cloud.storage.constants.NEARLINE_STORAGE_CLASS`,
+            :attr:`~google.cloud.storage.constants.COLDLINE_STORAGE_CLASS`,
+            :attr:`~google.cloud.storage.constants.STANDARD_STORAGE_CLASS`,
+            :attr:`~google.cloud.storage.constants.MULTI_REGIONAL_LEGACY_STORAGE_CLASS`,
+            or
+            :attr:`~google.cloud.storage.constants.REGIONAL_LEGACY_STORAGE_CLASS`.
 
         :type client: :class:`~google.cloud.storage.client.Client`
         :param client: Optional. The client to use.  If not passed, falls back
                        to the ``client`` stored on the blob's bucket.
         """
-        if new_class not in self._STORAGE_CLASSES:
+        if new_class not in self.STORAGE_CLASSES:
             raise ValueError("Invalid storage class: %s" % (new_class,))
 
         # Update current blob's storage class prior to rewrite
@@ -1888,9 +1934,15 @@ class Blob(_PropertyMixin):
     See https://cloud.google.com/storage/docs/storage-classes
 
     :rtype: str or ``NoneType``
-    :returns: If set, one of "MULTI_REGIONAL", "REGIONAL",
-              "NEARLINE", "COLDLINE", "STANDARD", or
-              "DURABLE_REDUCED_AVAILABILITY", else ``None``.
+    :returns:
+        If set, one of
+        :attr:`~google.cloud.storage.constants.STANDARD_STORAGE_CLASS`,
+        :attr:`~google.cloud.storage.constants.NEARLINE_STORAGE_CLASS`,
+        :attr:`~google.cloud.storage.constants.COLDLINE_STORAGE_CLASS`,
+        :attr:`~google.cloud.storage.constants.MULTI_REGIONAL_LEGACY_STORAGE_CLASS`,
+        :attr:`~google.cloud.storage.constants.REGIONAL_LEGACY_STORAGE_CLASS`,
+        :attr:`~google.cloud.storage.constants.DURABLE_REDUCED_AVAILABILITY_STORAGE_CLASS`,
+        else ``None``.
     """
 
     temporary_hold = _scalar_property("temporaryHold")
@@ -1983,7 +2035,7 @@ def _get_encryption_headers(key, source=False):
     }
 
 
-def _quote(value):
+def _quote(value, safe=b"~"):
     """URL-quote a string.
 
     If the value is unicode, this method first UTF-8 encodes it as bytes and
@@ -1994,11 +2046,14 @@ def _quote(value):
     :type value: str or bytes
     :param value: The value to be URL-quoted.
 
+    :type safe: bytes
+    :param safe: Bytes *not* to be quoted.  By default, includes only ``b'~'``.
+
     :rtype: str
     :returns: The encoded value (bytes in Python 2, unicode in Python 3).
     """
     value = _to_bytes(value, encoding="utf-8")
-    return quote(value, safe="")
+    return quote(value, safe=safe)
 
 
 def _maybe_rewind(stream, rewind=False):

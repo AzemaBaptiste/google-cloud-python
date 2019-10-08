@@ -20,7 +20,11 @@ import shutil
 import nox
 
 
-LOCAL_DEPS = (os.path.join("..", "api_core[grpc]"), os.path.join("..", "core"))
+LOCAL_DEPS = (
+    os.path.join("..", "api_core[grpc]"),
+    os.path.join("..", "core"),
+    os.path.join("..", "test_utils"),
+)
 
 BLACK_PATHS = ("docs", "google", "samples", "tests", "noxfile.py", "setup.py")
 
@@ -38,7 +42,6 @@ def default(session):
     for local_dep in LOCAL_DEPS:
         session.install("-e", local_dep)
 
-    # Pyarrow does not support Python 3.7
     dev_install = ".[all]"
     session.install("-e", dev_install)
 
@@ -147,6 +150,7 @@ def lint(session):
     session.install("-e", ".")
     session.run("flake8", os.path.join("google", "cloud", "bigquery"))
     session.run("flake8", "tests")
+    session.run("flake8", os.path.join("docs", "samples"))
     session.run("flake8", os.path.join("docs", "snippets.py"))
     session.run("black", "--check", *BLACK_PATHS)
 

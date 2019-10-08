@@ -21,6 +21,7 @@ import pkg_resources
 import warnings
 
 from google.oauth2 import service_account
+import google.api_core.client_options
 import google.api_core.gapic_v1.client_info
 import google.api_core.gapic_v1.config
 import google.api_core.gapic_v1.method
@@ -36,7 +37,6 @@ from google.cloud.talent_v4beta1.gapic.transports import profile_service_grpc_tr
 from google.cloud.talent_v4beta1.proto import application_pb2
 from google.cloud.talent_v4beta1.proto import application_service_pb2
 from google.cloud.talent_v4beta1.proto import application_service_pb2_grpc
-from google.cloud.talent_v4beta1.proto import batch_pb2
 from google.cloud.talent_v4beta1.proto import common_pb2
 from google.cloud.talent_v4beta1.proto import company_pb2
 from google.cloud.talent_v4beta1.proto import company_service_pb2
@@ -119,6 +119,7 @@ class ProfileServiceClient(object):
         credentials=None,
         client_config=None,
         client_info=None,
+        client_options=None,
     ):
         """Constructor.
 
@@ -149,6 +150,9 @@ class ProfileServiceClient(object):
                 API requests. If ``None``, then default info will be used.
                 Generally, you only need to set this if you're developing
                 your own client library.
+            client_options (Union[dict, google.api_core.client_options.ClientOptions]):
+                Client options used to set user options on the client. API Endpoint
+                should be set through client_options.
         """
         # Raise deprecation warnings for things we want to go away.
         if client_config is not None:
@@ -167,6 +171,15 @@ class ProfileServiceClient(object):
                 stacklevel=2,
             )
 
+        api_endpoint = self.SERVICE_ADDRESS
+        if client_options:
+            if type(client_options) == dict:
+                client_options = google.api_core.client_options.from_dict(
+                    client_options
+                )
+            if client_options.api_endpoint:
+                api_endpoint = client_options.api_endpoint
+
         # Instantiate the transport.
         # The transport is responsible for handling serialization and
         # deserialization and actually sending data to the service.
@@ -175,6 +188,7 @@ class ProfileServiceClient(object):
                 self.transport = transport(
                     credentials=credentials,
                     default_class=profile_service_grpc_transport.ProfileServiceGrpcTransport,
+                    address=api_endpoint,
                 )
             else:
                 if credentials:
@@ -185,7 +199,7 @@ class ProfileServiceClient(object):
                 self.transport = transport
         else:
             self.transport = profile_service_grpc_transport.ProfileServiceGrpcTransport(
-                address=self.SERVICE_ADDRESS, channel=channel, credentials=credentials
+                address=api_endpoint, channel=channel, credentials=credentials
             )
 
         if client_info is None:
@@ -214,6 +228,7 @@ class ProfileServiceClient(object):
     def list_profiles(
         self,
         parent,
+        filter_=None,
         page_size=None,
         read_mask=None,
         retry=google.api_core.gapic_v1.method.DEFAULT,
@@ -245,20 +260,34 @@ class ProfileServiceClient(object):
             ...         pass
 
         Args:
-            parent (str): Required.
+            parent (str): Required. The resource name of the tenant under which the profile is
+                created.
 
-                The resource name of the tenant under which the job is created.
+                The format is "projects/{project\_id}/tenants/{tenant\_id}". For
+                example, "projects/foo/tenants/bar".
+            filter_ (str): The filter string specifies the profiles to be enumerated.
 
-                The format is "projects/{project\_id}/tenants/{tenant\_id}", for
-                example, "projects/api-test-project/tenants/foo".
+                Supported operator: =, AND
+
+                The field(s) eligible for filtering are:
+
+                -  ``externalId``
+                -  ``groupId``
+
+                externalId and groupId cannot be specified at the same time. If both
+                externalId and groupId are provided, the API will return a bad request
+                error.
+
+                Sample Query:
+
+                -  externalId = "externalId-1"
+                -  groupId = "groupId-1"
             page_size (int): The maximum number of resources contained in the
                 underlying API response. If page streaming is performed per-
                 resource, this parameter does not affect the return value. If page
                 streaming is performed per-page, this determines the maximum number
                 of resources in a page.
-            read_mask (Union[dict, ~google.cloud.talent_v4beta1.types.FieldMask]): Optional.
-
-                A field mask to specify the profile fields to be listed in response. All
+            read_mask (Union[dict, ~google.cloud.talent_v4beta1.types.FieldMask]): A field mask to specify the profile fields to be listed in response. All
                 fields are listed if it is unset.
 
                 Valid values are:
@@ -268,8 +297,8 @@ class ProfileServiceClient(object):
                 If a dict is provided, it must be of the same form as the protobuf
                 message :class:`~google.cloud.talent_v4beta1.types.FieldMask`
             retry (Optional[google.api_core.retry.Retry]):  A retry object used
-                to retry requests. If ``None`` is specified, requests will not
-                be retried.
+                to retry requests. If ``None`` is specified, requests will
+                be retried using a default configuration.
             timeout (Optional[float]): The amount of time, in seconds, to wait
                 for the request to complete. Note that if ``retry`` is
                 specified, the timeout applies to each individual attempt.
@@ -277,10 +306,10 @@ class ProfileServiceClient(object):
                 that is provided to the method.
 
         Returns:
-            A :class:`~google.gax.PageIterator` instance. By default, this
-            is an iterable of :class:`~google.cloud.talent_v4beta1.types.Profile` instances.
-            This object can also be configured to iterate over the pages
-            of the response through the `options` parameter.
+            A :class:`~google.api_core.page_iterator.PageIterator` instance.
+            An iterable of :class:`~google.cloud.talent_v4beta1.types.Profile` instances.
+            You can also iterate over the pages of the response
+            using its `pages` property.
 
         Raises:
             google.api_core.exceptions.GoogleAPICallError: If the request
@@ -301,7 +330,7 @@ class ProfileServiceClient(object):
             )
 
         request = profile_service_pb2.ListProfilesRequest(
-            parent=parent, page_size=page_size, read_mask=read_mask
+            parent=parent, filter=filter_, page_size=page_size, read_mask=read_mask
         )
         if metadata is None:
             metadata = []
@@ -355,21 +384,17 @@ class ProfileServiceClient(object):
             >>> response = client.create_profile(parent, profile)
 
         Args:
-            parent (str): Required.
+            parent (str): Required. The name of the tenant this profile belongs to.
 
-                The name of the tenant this profile belongs to.
-
-                The format is "projects/{project\_id}/tenants/{tenant\_id}", for
-                example, "projects/api-test-project/tenants/foo".
-            profile (Union[dict, ~google.cloud.talent_v4beta1.types.Profile]): Required.
-
-                The profile to be created.
+                The format is "projects/{project\_id}/tenants/{tenant\_id}". For
+                example, "projects/foo/tenants/bar".
+            profile (Union[dict, ~google.cloud.talent_v4beta1.types.Profile]): Required. The profile to be created.
 
                 If a dict is provided, it must be of the same form as the protobuf
                 message :class:`~google.cloud.talent_v4beta1.types.Profile`
             retry (Optional[google.api_core.retry.Retry]):  A retry object used
-                to retry requests. If ``None`` is specified, requests will not
-                be retried.
+                to retry requests. If ``None`` is specified, requests will
+                be retried using a default configuration.
             timeout (Optional[float]): The amount of time, in seconds, to wait
                 for the request to complete. Note that if ``retry`` is
                 specified, the timeout applies to each individual attempt.
@@ -437,16 +462,14 @@ class ProfileServiceClient(object):
             >>> response = client.get_profile(name)
 
         Args:
-            name (str): Required.
-
-                Resource name of the profile to get.
+            name (str): Required. Resource name of the profile to get.
 
                 The format is
-                "projects/{project\_id}/tenants/{tenant\_id}/profiles/{profile\_id}",
-                for example, "projects/api-test-project/tenants/foo/profiles/bar".
+                "projects/{project\_id}/tenants/{tenant\_id}/profiles/{profile\_id}".
+                For example, "projects/foo/tenants/bar/profiles/baz".
             retry (Optional[google.api_core.retry.Retry]):  A retry object used
-                to retry requests. If ``None`` is specified, requests will not
-                be retried.
+                to retry requests. If ``None`` is specified, requests will
+                be retried using a default configuration.
             timeout (Optional[float]): The amount of time, in seconds, to wait
                 for the request to complete. Note that if ``retry`` is
                 specified, the timeout applies to each individual attempt.
@@ -514,49 +537,68 @@ class ProfileServiceClient(object):
             >>> response = client.update_profile(profile)
 
         Args:
-            profile (Union[dict, ~google.cloud.talent_v4beta1.types.Profile]): Required.
-
-                Profile to be updated.
+            profile (Union[dict, ~google.cloud.talent_v4beta1.types.Profile]): Required. Profile to be updated.
 
                 If a dict is provided, it must be of the same form as the protobuf
                 message :class:`~google.cloud.talent_v4beta1.types.Profile`
-            update_mask (Union[dict, ~google.cloud.talent_v4beta1.types.FieldMask]): Optional.
-
-                A field mask to specify the profile fields to update.
+            update_mask (Union[dict, ~google.cloud.talent_v4beta1.types.FieldMask]): A field mask to specify the profile fields to update.
 
                 A full update is performed if it is unset.
 
                 Valid values are:
 
-                -  externalId
+                -  external\_id
                 -  source
+                -  source\_types
                 -  uri
-                -  isHirable
-                -  createTime
-                -  updateTime
-                -  resumeHrxml
-                -  personNames
+                -  is\_hirable
+                -  create\_time
+                -  update\_time
+                -  candidate\_update\_time
+                -  resume\_update\_time
+                -  resume
+                -  person\_names
                 -  addresses
-                -  emailAddresses
-                -  phoneNumbers
-                -  personalUris
-                -  additionalContactInfo
-                -  employmentRecords
-                -  educationRecords
+                -  email\_addresses
+                -  phone\_numbers
+                -  personal\_uris
+                -  additional\_contact\_info
+                -  employment\_records
+                -  education\_records
                 -  skills
-                -  projects
+                -  activities
                 -  publications
                 -  patents
                 -  certifications
-                -  recruitingNotes
-                -  customAttributes
-                -  groupId
+                -  recruiting\_notes
+                -  custom\_attributes
+                -  group\_id
+                -  external\_system
+                -  source\_note
+                -  primary\_responsibilities
+                -  citizenships
+                -  work\_authorizations
+                -  employee\_types
+                -  language\_code
+                -  qualification\_summary
+                -  allowed\_contact\_types
+                -  preferred\_contact\_types
+                -  contact\_availability
+                -  language\_fluencies
+                -  work\_preference
+                -  industry\_experiences
+                -  work\_environment\_experiences
+                -  work\_availability
+                -  security\_clearances
+                -  references
+                -  assessments
+                -  interviews
 
                 If a dict is provided, it must be of the same form as the protobuf
                 message :class:`~google.cloud.talent_v4beta1.types.FieldMask`
             retry (Optional[google.api_core.retry.Retry]):  A retry object used
-                to retry requests. If ``None`` is specified, requests will not
-                be retried.
+                to retry requests. If ``None`` is specified, requests will
+                be retried using a default configuration.
             timeout (Optional[float]): The amount of time, in seconds, to wait
                 for the request to complete. Note that if ``retry`` is
                 specified, the timeout applies to each individual attempt.
@@ -626,16 +668,14 @@ class ProfileServiceClient(object):
             >>> client.delete_profile(name)
 
         Args:
-            name (str): Required.
-
-                Resource name of the profile to be deleted.
+            name (str): Required. Resource name of the profile to be deleted.
 
                 The format is
-                "projects/{project\_id}/tenants/{tenant\_id}/profiles/{profile\_id}",
-                for example, "projects/api-test-project/tenants/foo/profiles/bar".
+                "projects/{project\_id}/tenants/{tenant\_id}/profiles/{profile\_id}".
+                For example, "projects/foo/tenants/bar/profiles/baz".
             retry (Optional[google.api_core.retry.Retry]):  A retry object used
-                to retry requests. If ``None`` is specified, requests will not
-                be retried.
+                to retry requests. If ``None`` is specified, requests will
+                be retried using a default configuration.
             timeout (Optional[float]): The amount of time, in seconds, to wait
                 for the request to complete. Note that if ``retry`` is
                 specified, the timeout applies to each individual attempt.
@@ -689,6 +729,8 @@ class ProfileServiceClient(object):
         order_by=None,
         case_sensitive_sort=None,
         histogram_queries=None,
+        result_set_id=None,
+        strict_keywords_search=None,
         retry=google.api_core.gapic_v1.method.DEFAULT,
         timeout=google.api_core.gapic_v1.method.DEFAULT,
         metadata=None,
@@ -727,23 +769,17 @@ class ProfileServiceClient(object):
             ...         pass
 
         Args:
-            parent (str): Required.
+            parent (str): Required. The resource name of the tenant to search within.
 
-                The resource name of the tenant to search within.
-
-                The format is "projects/{project\_id}/tenants/{tenant\_id}", for
-                example, "projects/api-test-project/tenants/foo".
-            request_metadata (Union[dict, ~google.cloud.talent_v4beta1.types.RequestMetadata]): Required.
-
-                The meta information collected about the profile search user. This is used
-                to improve the search quality of the service. These values are provided by
-                users, and must be precise and consistent.
+                The format is "projects/{project\_id}/tenants/{tenant\_id}". For
+                example, "projects/foo/tenants/bar".
+            request_metadata (Union[dict, ~google.cloud.talent_v4beta1.types.RequestMetadata]): Required. The meta information collected about the profile search user.
+                This is used to improve the search quality of the service. These values are
+                provided by users, and must be precise and consistent.
 
                 If a dict is provided, it must be of the same form as the protobuf
                 message :class:`~google.cloud.talent_v4beta1.types.RequestMetadata`
-            profile_query (Union[dict, ~google.cloud.talent_v4beta1.types.ProfileQuery]): Optional.
-
-                Search query to execute. See ``ProfileQuery`` for more details.
+            profile_query (Union[dict, ~google.cloud.talent_v4beta1.types.ProfileQuery]): Search query to execute. See ``ProfileQuery`` for more details.
 
                 If a dict is provided, it must be of the same form as the protobuf
                 message :class:`~google.cloud.talent_v4beta1.types.ProfileQuery`
@@ -752,9 +788,7 @@ class ProfileServiceClient(object):
                 resource, this parameter does not affect the return value. If page
                 streaming is performed per-page, this determines the maximum number
                 of resources in a page.
-            offset (int): Optional.
-
-                An integer that specifies the current offset (that is, starting result)
+            offset (int): An integer that specifies the current offset (that is, starting result)
                 in search results. This field is only considered if ``page_token`` is
                 unset.
 
@@ -764,24 +798,20 @@ class ProfileServiceClient(object):
                 search from the 11th profile. This can be used for pagination, for
                 example pageSize = 10 and offset = 10 means to search from the second
                 page.
-            disable_spell_check (bool): Optional.
-
-                This flag controls the spell-check feature. If ``false``, the service
+            disable_spell_check (bool): This flag controls the spell-check feature. If ``false``, the service
                 attempts to correct a misspelled query.
 
                 For example, "enginee" is corrected to "engineer".
-            order_by (str): Optional.
-
-                The criteria that determines how search results are sorted. Defaults is
+            order_by (str): The criteria that determines how search results are sorted. Defaults is
                 "relevance desc" if no value is specified.
 
                 Supported options are:
 
                 -  "relevance desc": By descending relevance, as determined by the API
                    algorithms.
-                -  "update\_time desc": Sort by ``Profile.update_time`` in descending
+                -  "update\_date desc": Sort by ``Profile.update_time`` in descending
                    order (recently updated profiles first).
-                -  "create\_time desc": Sort by ``Profile.create_time`` in descending
+                -  "create\_date desc": Sort by ``Profile.create_time`` in descending
                    order (recently created profiles first).
                 -  "first\_name": Sort by ``PersonName.PersonStructuredName.given_name``
                    in ascending order.
@@ -791,18 +821,13 @@ class ProfileServiceClient(object):
                    in ascending order.
                 -  "last\_name desc": Sort by
                    ``PersonName.PersonStructuredName.family_name`` in ascending order.
-            case_sensitive_sort (bool): Optional.
-
-                When sort by field is based on alphabetical order, sort values case
+            case_sensitive_sort (bool): When sort by field is based on alphabetical order, sort values case
                 sensitively (based on ASCII) when the value is set to true. Default value
                 is case in-sensitive sort (false).
-            histogram_queries (list[Union[dict, ~google.cloud.talent_v4beta1.types.HistogramQuery]]): Optional.
-
-                A list of expressions specifies histogram requests against matching
+            histogram_queries (list[Union[dict, ~google.cloud.talent_v4beta1.types.HistogramQuery]]): A list of expressions specifies histogram requests against matching
                 profiles for ``SearchProfilesRequest``.
 
-                The expression syntax looks like a function definition with optional
-                parameters.
+                The expression syntax looks like a function definition with parameters.
 
                 Function syntax: function\_name(histogram\_facet[, list of buckets])
 
@@ -878,9 +903,40 @@ class ProfileServiceClient(object):
 
                 If a dict is provided, it must be of the same form as the protobuf
                 message :class:`~google.cloud.talent_v4beta1.types.HistogramQuery`
+            result_set_id (str): An id that uniquely identifies the result set of a ``SearchProfiles``
+                call. The id should be retrieved from the ``SearchProfilesResponse``
+                message returned from a previous invocation of ``SearchProfiles``.
+
+                A result set is an ordered list of search results.
+
+                If this field is not set, a new result set is computed based on the
+                ``profile_query``. A new ``result_set_id`` is returned as a handle to
+                access this result set.
+
+                If this field is set, the service will ignore the resource and
+                ``profile_query`` values, and simply retrieve a page of results from the
+                corresponding result set. In this case, one and only one of
+                ``page_token`` or ``offset`` must be set.
+
+                A typical use case is to invoke ``SearchProfilesRequest`` without this
+                field, then use the resulting ``result_set_id`` in
+                ``SearchProfilesResponse`` to page through the results.
+            strict_keywords_search (bool): This flag is used to indicate whether the service will attempt to
+                understand synonyms and terms related to the search query or treat the
+                query "as is" when it generates a set of results. By default this flag is
+                set to false, thus allowing expanded results to also be returned. For
+                example a search for "software engineer" might also return candidates who
+                have experience in jobs similar to software engineer positions. By setting
+                this flag to true, the service will only attempt to deliver candidates has
+                software engineer in his/her global fields by treating "software engineer"
+                as a keyword.
+
+                It is recommended to provide a feature in the UI (such as a checkbox) to
+                allow recruiters to set this flag to true if they intend to search for
+                longer boolean strings.
             retry (Optional[google.api_core.retry.Retry]):  A retry object used
-                to retry requests. If ``None`` is specified, requests will not
-                be retried.
+                to retry requests. If ``None`` is specified, requests will
+                be retried using a default configuration.
             timeout (Optional[float]): The amount of time, in seconds, to wait
                 for the request to complete. Note that if ``retry`` is
                 specified, the timeout applies to each individual attempt.
@@ -888,10 +944,10 @@ class ProfileServiceClient(object):
                 that is provided to the method.
 
         Returns:
-            A :class:`~google.gax.PageIterator` instance. By default, this
-            is an iterable of :class:`~google.cloud.talent_v4beta1.types.SummarizedProfile` instances.
-            This object can also be configured to iterate over the pages
-            of the response through the `options` parameter.
+            A :class:`~google.api_core.page_iterator.PageIterator` instance.
+            An iterable of :class:`~google.cloud.talent_v4beta1.types.SummarizedProfile` instances.
+            You can also iterate over the pages of the response
+            using its `pages` property.
 
         Raises:
             google.api_core.exceptions.GoogleAPICallError: If the request
@@ -921,6 +977,8 @@ class ProfileServiceClient(object):
             order_by=order_by,
             case_sensitive_sort=case_sensitive_sort,
             histogram_queries=histogram_queries,
+            result_set_id=result_set_id,
+            strict_keywords_search=strict_keywords_search,
         )
         if metadata is None:
             metadata = []

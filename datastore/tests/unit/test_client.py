@@ -128,6 +128,7 @@ class TestClient(unittest.TestCase):
         namespace=None,
         credentials=None,
         client_info=None,
+        client_options=None,
         _http=None,
         _use_grpc=None,
     ):
@@ -136,6 +137,7 @@ class TestClient(unittest.TestCase):
             namespace=namespace,
             credentials=credentials,
             client_info=client_info,
+            client_options=client_options,
             _http=_http,
             _use_grpc=_use_grpc,
         )
@@ -172,6 +174,7 @@ class TestClient(unittest.TestCase):
         self.assertIs(client._credentials, creds)
         self.assertIs(client._client_info, _CLIENT_INFO)
         self.assertIsNone(client._http_internal)
+        self.assertIsNone(client._client_options)
         self.assertEqual(client.base_url, _DATASTORE_BASE_URL)
 
         self.assertIsNone(client.current_batch)
@@ -181,18 +184,20 @@ class TestClient(unittest.TestCase):
         _determine_default_project.assert_called_once_with(None)
 
     def test_constructor_w_explicit_inputs(self):
-        from google.cloud.datastore.client import _DATASTORE_BASE_URL
+        from google.api_core.client_options import ClientOptions
 
         other = "other"
         namespace = "namespace"
         creds = _make_credentials()
         client_info = mock.Mock()
+        client_options = ClientOptions("endpoint")
         http = object()
         client = self._make_one(
             project=other,
             namespace=namespace,
             credentials=creds,
             client_info=client_info,
+            client_options=client_options,
             _http=http,
         )
         self.assertEqual(client.project, other)
@@ -201,8 +206,8 @@ class TestClient(unittest.TestCase):
         self.assertIs(client._client_info, client_info)
         self.assertIs(client._http_internal, http)
         self.assertIsNone(client.current_batch)
+        self.assertIs(client._base_url, "endpoint")
         self.assertEqual(list(client._batch_stack), [])
-        self.assertEqual(client.base_url, _DATASTORE_BASE_URL)
 
     def test_constructor_use_grpc_default(self):
         import google.cloud.datastore.client as MUT
@@ -243,12 +248,39 @@ class TestClient(unittest.TestCase):
             self.assertEqual(client.base_url, "http://" + host)
 
     def test_base_url_property(self):
+        from google.cloud.datastore.client import _DATASTORE_BASE_URL
+        from google.api_core.client_options import ClientOptions
+
         alternate_url = "https://alias.example.com/"
         project = "PROJECT"
         creds = _make_credentials()
         http = object()
+        client_options = ClientOptions()
 
-        client = self._make_one(project=project, credentials=creds, _http=http)
+        client = self._make_one(
+            project=project,
+            credentials=creds,
+            _http=http,
+            client_options=client_options,
+        )
+        self.assertEqual(client.base_url, _DATASTORE_BASE_URL)
+        client.base_url = alternate_url
+        self.assertEqual(client.base_url, alternate_url)
+
+    def test_base_url_property_w_client_options(self):
+        alternate_url = "https://alias.example.com/"
+        project = "PROJECT"
+        creds = _make_credentials()
+        http = object()
+        client_options = {"api_endpoint": "endpoint"}
+
+        client = self._make_one(
+            project=project,
+            credentials=creds,
+            _http=http,
+            client_options=client_options,
+        )
+        self.assertEqual(client.base_url, "endpoint")
         client.base_url = alternate_url
         self.assertEqual(client.base_url, alternate_url)
 
@@ -860,12 +892,42 @@ class TestClient(unittest.TestCase):
         # Check the IDs returned.
         self.assertEqual([key._id for key in result], list(range(num_ids)))
 
-    def test_allocate_ids_with_completed_key(self):
+    def test_allocate_ids_w_completed_key(self):
         creds = _make_credentials()
         client = self._make_one(credentials=creds)
 
-        COMPLETE_KEY = _Key(self.PROJECT)
-        self.assertRaises(ValueError, client.allocate_ids, COMPLETE_KEY, 2)
+        complete_key = _Key(self.PROJECT)
+        self.assertRaises(ValueError, client.allocate_ids, complete_key, 2)
+
+    def test_reserve_ids_w_completed_key(self):
+        num_ids = 2
+        creds = _make_credentials()
+        client = self._make_one(credentials=creds, _use_grpc=False)
+        complete_key = _Key(self.PROJECT)
+        reserve_ids = mock.Mock()
+        ds_api = mock.Mock(reserve_ids=reserve_ids, spec=["reserve_ids"])
+        client._datastore_api_internal = ds_api
+        self.assertTrue(not complete_key.is_partial)
+        client.reserve_ids(complete_key, num_ids)
+        expected_keys = [complete_key.to_protobuf()] * num_ids
+        reserve_ids.assert_called_once_with(self.PROJECT, expected_keys)
+
+    def test_reserve_ids_w_partial_key(self):
+        num_ids = 2
+        incomplete_key = _Key(self.PROJECT)
+        incomplete_key._id = None
+        creds = _make_credentials()
+        client = self._make_one(credentials=creds)
+        with self.assertRaises(ValueError):
+            client.reserve_ids(incomplete_key, num_ids)
+
+    def test_reserve_ids_w_wrong_num_ids(self):
+        num_ids = "2"
+        complete_key = _Key(self.PROJECT)
+        creds = _make_credentials()
+        client = self._make_one(credentials=creds)
+        with self.assertRaises(ValueError):
+            client.reserve_ids(complete_key, num_ids)
 
     def test_key_w_project(self):
         KIND = "KIND"

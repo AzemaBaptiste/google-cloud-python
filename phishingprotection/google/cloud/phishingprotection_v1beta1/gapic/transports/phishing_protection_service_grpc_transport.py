@@ -61,7 +61,14 @@ class PhishingProtectionServiceGrpcTransport(object):
 
         # Create the channel.
         if channel is None:
-            channel = self.create_channel(address=address, credentials=credentials)
+            channel = self.create_channel(
+                address=address,
+                credentials=credentials,
+                options={
+                    "grpc.max_send_message_length": -1,
+                    "grpc.max_receive_message_length": -1,
+                }.items(),
+            )
 
         self._channel = channel
 
@@ -75,7 +82,7 @@ class PhishingProtectionServiceGrpcTransport(object):
 
     @classmethod
     def create_channel(
-        cls, address="phishingprotection.googleapis.com:443", credentials=None
+        cls, address="phishingprotection.googleapis.com:443", credentials=None, **kwargs
     ):
         """Create and return a gRPC channel object.
 
@@ -86,12 +93,14 @@ class PhishingProtectionServiceGrpcTransport(object):
                 credentials identify this application to the service. If
                 none are specified, the client will attempt to ascertain
                 the credentials from the environment.
+            kwargs (dict): Keyword arguments, which are passed to the
+                channel creation.
 
         Returns:
             grpc.Channel: A gRPC channel object.
         """
         return google.api_core.grpc_helpers.create_channel(
-            address, credentials=credentials, scopes=cls._OAUTH_SCOPES
+            address, credentials=credentials, scopes=cls._OAUTH_SCOPES, **kwargs
         )
 
     @property
@@ -108,9 +117,10 @@ class PhishingProtectionServiceGrpcTransport(object):
         """Return the gRPC stub for :meth:`PhishingProtectionServiceClient.report_phishing`.
 
         Reports a URI suspected of containing phishing content to be reviewed.
-        Once the report review is completed, if its result verifies the
-        existince of malicious phishing content, the site will be added the to
-        `Google's Social Engineering
+        Once the report review is complete, its result can be found in the Cloud
+        Security Command Center findings dashboard for Phishing Protection. If
+        the result verifies the existence of malicious phishing content, the
+        site will be added the to `Google's Social Engineering
         lists <https://support.google.com/webmasters/answer/6350487/>`__ in
         order to protect users that could get exposed to this threat in the
         future.

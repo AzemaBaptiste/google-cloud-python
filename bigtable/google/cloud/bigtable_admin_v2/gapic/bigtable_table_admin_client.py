@@ -21,6 +21,7 @@ import pkg_resources
 import warnings
 
 from google.oauth2 import service_account
+import google.api_core.client_options
 import google.api_core.gapic_v1.client_info
 import google.api_core.gapic_v1.config
 import google.api_core.gapic_v1.method
@@ -45,6 +46,7 @@ from google.cloud.bigtable_admin_v2.proto import bigtable_table_admin_pb2_grpc
 from google.cloud.bigtable_admin_v2.proto import instance_pb2
 from google.cloud.bigtable_admin_v2.proto import table_pb2
 from google.iam.v1 import iam_policy_pb2
+from google.iam.v1 import options_pb2
 from google.iam.v1 import policy_pb2
 from google.longrunning import operations_pb2
 from google.protobuf import duration_pb2
@@ -138,6 +140,7 @@ class BigtableTableAdminClient(object):
         credentials=None,
         client_config=None,
         client_info=None,
+        client_options=None,
     ):
         """Constructor.
 
@@ -168,6 +171,9 @@ class BigtableTableAdminClient(object):
                 API requests. If ``None``, then default info will be used.
                 Generally, you only need to set this if you're developing
                 your own client library.
+            client_options (Union[dict, google.api_core.client_options.ClientOptions]):
+                Client options used to set user options on the client. API Endpoint
+                should be set through client_options.
         """
         # Raise deprecation warnings for things we want to go away.
         if client_config is not None:
@@ -186,6 +192,15 @@ class BigtableTableAdminClient(object):
                 stacklevel=2,
             )
 
+        api_endpoint = self.SERVICE_ADDRESS
+        if client_options:
+            if type(client_options) == dict:
+                client_options = google.api_core.client_options.from_dict(
+                    client_options
+                )
+            if client_options.api_endpoint:
+                api_endpoint = client_options.api_endpoint
+
         # Instantiate the transport.
         # The transport is responsible for handling serialization and
         # deserialization and actually sending data to the service.
@@ -194,6 +209,7 @@ class BigtableTableAdminClient(object):
                 self.transport = transport(
                     credentials=credentials,
                     default_class=bigtable_table_admin_grpc_transport.BigtableTableAdminGrpcTransport,
+                    address=api_endpoint,
                 )
             else:
                 if credentials:
@@ -204,7 +220,7 @@ class BigtableTableAdminClient(object):
                 self.transport = transport
         else:
             self.transport = bigtable_table_admin_grpc_transport.BigtableTableAdminGrpcTransport(
-                address=self.SERVICE_ADDRESS, channel=channel, credentials=credentials
+                address=api_endpoint, channel=channel, credentials=credentials
             )
 
         if client_info is None:
@@ -291,8 +307,8 @@ class BigtableTableAdminClient(object):
                 If a dict is provided, it must be of the same form as the protobuf
                 message :class:`~google.cloud.bigtable_admin_v2.types.Split`
             retry (Optional[google.api_core.retry.Retry]):  A retry object used
-                to retry requests. If ``None`` is specified, requests will not
-                be retried.
+                to retry requests. If ``None`` is specified, requests will
+                be retried using a default configuration.
             timeout (Optional[float]): The amount of time, in seconds, to wait
                 for the request to complete. Note that if ``retry`` is
                 specified, the timeout applies to each individual attempt.
@@ -393,8 +409,8 @@ class BigtableTableAdminClient(object):
                 form
                 ``projects/<project>/instances/<instance>/clusters/<cluster>/snapshots/<snapshot>``.
             retry (Optional[google.api_core.retry.Retry]):  A retry object used
-                to retry requests. If ``None`` is specified, requests will not
-                be retried.
+                to retry requests. If ``None`` is specified, requests will
+                be retried using a default configuration.
             timeout (Optional[float]): The amount of time, in seconds, to wait
                 for the request to complete. Note that if ``retry`` is
                 specified, the timeout applies to each individual attempt.
@@ -489,8 +505,8 @@ class BigtableTableAdminClient(object):
             page_size (int): Maximum number of results per page.
                 CURRENTLY UNIMPLEMENTED AND IGNORED.
             retry (Optional[google.api_core.retry.Retry]):  A retry object used
-                to retry requests. If ``None`` is specified, requests will not
-                be retried.
+                to retry requests. If ``None`` is specified, requests will
+                be retried using a default configuration.
             timeout (Optional[float]): The amount of time, in seconds, to wait
                 for the request to complete. Note that if ``retry`` is
                 specified, the timeout applies to each individual attempt.
@@ -498,10 +514,10 @@ class BigtableTableAdminClient(object):
                 that is provided to the method.
 
         Returns:
-            A :class:`~google.gax.PageIterator` instance. By default, this
-            is an iterable of :class:`~google.cloud.bigtable_admin_v2.types.Table` instances.
-            This object can also be configured to iterate over the pages
-            of the response through the `options` parameter.
+            A :class:`~google.api_core.page_iterator.PageIterator` instance.
+            An iterable of :class:`~google.cloud.bigtable_admin_v2.types.Table` instances.
+            You can also iterate over the pages of the response
+            using its `pages` property.
 
         Raises:
             google.api_core.exceptions.GoogleAPICallError: If the request
@@ -578,8 +594,8 @@ class BigtableTableAdminClient(object):
             view (~google.cloud.bigtable_admin_v2.types.View): The view to be applied to the returned table's fields. Defaults to
                 ``SCHEMA_VIEW`` if unspecified.
             retry (Optional[google.api_core.retry.Retry]):  A retry object used
-                to retry requests. If ``None`` is specified, requests will not
-                be retried.
+                to retry requests. If ``None`` is specified, requests will
+                be retried using a default configuration.
             timeout (Optional[float]): The amount of time, in seconds, to wait
                 for the request to complete. Note that if ``retry`` is
                 specified, the timeout applies to each individual attempt.
@@ -648,8 +664,8 @@ class BigtableTableAdminClient(object):
             name (str): The unique name of the table to be deleted. Values are of the form
                 ``projects/<project>/instances/<instance>/tables/<table>``.
             retry (Optional[google.api_core.retry.Retry]):  A retry object used
-                to retry requests. If ``None`` is specified, requests will not
-                be retried.
+                to retry requests. If ``None`` is specified, requests will
+                be retried using a default configuration.
             timeout (Optional[float]): The amount of time, in seconds, to wait
                 for the request to complete. Note that if ``retry`` is
                 specified, the timeout applies to each individual attempt.
@@ -730,8 +746,8 @@ class BigtableTableAdminClient(object):
                 If a dict is provided, it must be of the same form as the protobuf
                 message :class:`~google.cloud.bigtable_admin_v2.types.Modification`
             retry (Optional[google.api_core.retry.Retry]):  A retry object used
-                to retry requests. If ``None`` is specified, requests will not
-                be retried.
+                to retry requests. If ``None`` is specified, requests will
+                be retried using a default configuration.
             timeout (Optional[float]): The amount of time, in seconds, to wait
                 for the request to complete. Note that if ``retry`` is
                 specified, the timeout applies to each individual attempt.
@@ -810,8 +826,8 @@ class BigtableTableAdminClient(object):
                 zero length.
             delete_all_data_from_table (bool): Delete all rows in the table. Setting this to false is a no-op.
             retry (Optional[google.api_core.retry.Retry]):  A retry object used
-                to retry requests. If ``None`` is specified, requests will not
-                be retried.
+                to retry requests. If ``None`` is specified, requests will
+                be retried using a default configuration.
             timeout (Optional[float]): The amount of time, in seconds, to wait
                 for the request to complete. Note that if ``retry`` is
                 specified, the timeout applies to each individual attempt.
@@ -892,8 +908,8 @@ class BigtableTableAdminClient(object):
                 Values are of the form
                 ``projects/<project>/instances/<instance>/tables/<table>``.
             retry (Optional[google.api_core.retry.Retry]):  A retry object used
-                to retry requests. If ``None`` is specified, requests will not
-                be retried.
+                to retry requests. If ``None`` is specified, requests will
+                be retried using a default configuration.
             timeout (Optional[float]): The amount of time, in seconds, to wait
                 for the request to complete. Note that if ``retry`` is
                 specified, the timeout applies to each individual attempt.
@@ -972,8 +988,8 @@ class BigtableTableAdminClient(object):
                 ``projects/<project>/instances/<instance>/tables/<table>``.
             consistency_token (str): The token created using GenerateConsistencyToken for the Table.
             retry (Optional[google.api_core.retry.Retry]):  A retry object used
-                to retry requests. If ``None`` is specified, requests will not
-                be retried.
+                to retry requests. If ``None`` is specified, requests will
+                be retried using a default configuration.
             timeout (Optional[float]): The amount of time, in seconds, to wait
                 for the request to complete. Note that if ``retry`` is
                 specified, the timeout applies to each individual attempt.
@@ -1018,6 +1034,247 @@ class BigtableTableAdminClient(object):
             metadata.append(routing_metadata)
 
         return self._inner_api_calls["check_consistency"](
+            request, retry=retry, timeout=timeout, metadata=metadata
+        )
+
+    def get_iam_policy(
+        self,
+        resource,
+        options_=None,
+        retry=google.api_core.gapic_v1.method.DEFAULT,
+        timeout=google.api_core.gapic_v1.method.DEFAULT,
+        metadata=None,
+    ):
+        """
+        Gets the access control policy for an instance resource. Returns an empty
+        policy if an table exists but does not have a policy set.
+
+        Example:
+            >>> from google.cloud import bigtable_admin_v2
+            >>>
+            >>> client = bigtable_admin_v2.BigtableTableAdminClient()
+            >>>
+            >>> resource = client.table_path('[PROJECT]', '[INSTANCE]', '[TABLE]')
+            >>>
+            >>> response = client.get_iam_policy(resource)
+
+        Args:
+            resource (str): REQUIRED: The resource for which the policy is being requested.
+                See the operation documentation for the appropriate value for this field.
+            options_ (Union[dict, ~google.cloud.bigtable_admin_v2.types.GetPolicyOptions]): OPTIONAL: A ``GetPolicyOptions`` object for specifying options to
+                ``GetIamPolicy``. This field is only used by Cloud IAM.
+
+                If a dict is provided, it must be of the same form as the protobuf
+                message :class:`~google.cloud.bigtable_admin_v2.types.GetPolicyOptions`
+            retry (Optional[google.api_core.retry.Retry]):  A retry object used
+                to retry requests. If ``None`` is specified, requests will
+                be retried using a default configuration.
+            timeout (Optional[float]): The amount of time, in seconds, to wait
+                for the request to complete. Note that if ``retry`` is
+                specified, the timeout applies to each individual attempt.
+            metadata (Optional[Sequence[Tuple[str, str]]]): Additional metadata
+                that is provided to the method.
+
+        Returns:
+            A :class:`~google.cloud.bigtable_admin_v2.types.Policy` instance.
+
+        Raises:
+            google.api_core.exceptions.GoogleAPICallError: If the request
+                    failed for any reason.
+            google.api_core.exceptions.RetryError: If the request failed due
+                    to a retryable error and retry attempts failed.
+            ValueError: If the parameters are invalid.
+        """
+        # Wrap the transport method to add retry and timeout logic.
+        if "get_iam_policy" not in self._inner_api_calls:
+            self._inner_api_calls[
+                "get_iam_policy"
+            ] = google.api_core.gapic_v1.method.wrap_method(
+                self.transport.get_iam_policy,
+                default_retry=self._method_configs["GetIamPolicy"].retry,
+                default_timeout=self._method_configs["GetIamPolicy"].timeout,
+                client_info=self._client_info,
+            )
+
+        request = iam_policy_pb2.GetIamPolicyRequest(
+            resource=resource, options=options_
+        )
+        if metadata is None:
+            metadata = []
+        metadata = list(metadata)
+        try:
+            routing_header = [("resource", resource)]
+        except AttributeError:
+            pass
+        else:
+            routing_metadata = google.api_core.gapic_v1.routing_header.to_grpc_metadata(
+                routing_header
+            )
+            metadata.append(routing_metadata)
+
+        return self._inner_api_calls["get_iam_policy"](
+            request, retry=retry, timeout=timeout, metadata=metadata
+        )
+
+    def set_iam_policy(
+        self,
+        resource,
+        policy,
+        retry=google.api_core.gapic_v1.method.DEFAULT,
+        timeout=google.api_core.gapic_v1.method.DEFAULT,
+        metadata=None,
+    ):
+        """
+        Sets the access control policy on a table resource. Replaces any existing
+        policy.
+
+        Example:
+            >>> from google.cloud import bigtable_admin_v2
+            >>>
+            >>> client = bigtable_admin_v2.BigtableTableAdminClient()
+            >>>
+            >>> resource = client.table_path('[PROJECT]', '[INSTANCE]', '[TABLE]')
+            >>>
+            >>> # TODO: Initialize `policy`:
+            >>> policy = {}
+            >>>
+            >>> response = client.set_iam_policy(resource, policy)
+
+        Args:
+            resource (str): REQUIRED: The resource for which the policy is being specified.
+                See the operation documentation for the appropriate value for this field.
+            policy (Union[dict, ~google.cloud.bigtable_admin_v2.types.Policy]): REQUIRED: The complete policy to be applied to the ``resource``. The
+                size of the policy is limited to a few 10s of KB. An empty policy is a
+                valid policy but certain Cloud Platform services (such as Projects)
+                might reject them.
+
+                If a dict is provided, it must be of the same form as the protobuf
+                message :class:`~google.cloud.bigtable_admin_v2.types.Policy`
+            retry (Optional[google.api_core.retry.Retry]):  A retry object used
+                to retry requests. If ``None`` is specified, requests will
+                be retried using a default configuration.
+            timeout (Optional[float]): The amount of time, in seconds, to wait
+                for the request to complete. Note that if ``retry`` is
+                specified, the timeout applies to each individual attempt.
+            metadata (Optional[Sequence[Tuple[str, str]]]): Additional metadata
+                that is provided to the method.
+
+        Returns:
+            A :class:`~google.cloud.bigtable_admin_v2.types.Policy` instance.
+
+        Raises:
+            google.api_core.exceptions.GoogleAPICallError: If the request
+                    failed for any reason.
+            google.api_core.exceptions.RetryError: If the request failed due
+                    to a retryable error and retry attempts failed.
+            ValueError: If the parameters are invalid.
+        """
+        # Wrap the transport method to add retry and timeout logic.
+        if "set_iam_policy" not in self._inner_api_calls:
+            self._inner_api_calls[
+                "set_iam_policy"
+            ] = google.api_core.gapic_v1.method.wrap_method(
+                self.transport.set_iam_policy,
+                default_retry=self._method_configs["SetIamPolicy"].retry,
+                default_timeout=self._method_configs["SetIamPolicy"].timeout,
+                client_info=self._client_info,
+            )
+
+        request = iam_policy_pb2.SetIamPolicyRequest(resource=resource, policy=policy)
+        if metadata is None:
+            metadata = []
+        metadata = list(metadata)
+        try:
+            routing_header = [("resource", resource)]
+        except AttributeError:
+            pass
+        else:
+            routing_metadata = google.api_core.gapic_v1.routing_header.to_grpc_metadata(
+                routing_header
+            )
+            metadata.append(routing_metadata)
+
+        return self._inner_api_calls["set_iam_policy"](
+            request, retry=retry, timeout=timeout, metadata=metadata
+        )
+
+    def test_iam_permissions(
+        self,
+        resource,
+        permissions,
+        retry=google.api_core.gapic_v1.method.DEFAULT,
+        timeout=google.api_core.gapic_v1.method.DEFAULT,
+        metadata=None,
+    ):
+        """
+        Returns permissions that the caller has on the specified table resource.
+
+        Example:
+            >>> from google.cloud import bigtable_admin_v2
+            >>>
+            >>> client = bigtable_admin_v2.BigtableTableAdminClient()
+            >>>
+            >>> resource = client.table_path('[PROJECT]', '[INSTANCE]', '[TABLE]')
+            >>>
+            >>> # TODO: Initialize `permissions`:
+            >>> permissions = []
+            >>>
+            >>> response = client.test_iam_permissions(resource, permissions)
+
+        Args:
+            resource (str): REQUIRED: The resource for which the policy detail is being requested.
+                See the operation documentation for the appropriate value for this field.
+            permissions (list[str]): The set of permissions to check for the ``resource``. Permissions with
+                wildcards (such as '*' or 'storage.*') are not allowed. For more
+                information see `IAM
+                Overview <https://cloud.google.com/iam/docs/overview#permissions>`__.
+            retry (Optional[google.api_core.retry.Retry]):  A retry object used
+                to retry requests. If ``None`` is specified, requests will
+                be retried using a default configuration.
+            timeout (Optional[float]): The amount of time, in seconds, to wait
+                for the request to complete. Note that if ``retry`` is
+                specified, the timeout applies to each individual attempt.
+            metadata (Optional[Sequence[Tuple[str, str]]]): Additional metadata
+                that is provided to the method.
+
+        Returns:
+            A :class:`~google.cloud.bigtable_admin_v2.types.TestIamPermissionsResponse` instance.
+
+        Raises:
+            google.api_core.exceptions.GoogleAPICallError: If the request
+                    failed for any reason.
+            google.api_core.exceptions.RetryError: If the request failed due
+                    to a retryable error and retry attempts failed.
+            ValueError: If the parameters are invalid.
+        """
+        # Wrap the transport method to add retry and timeout logic.
+        if "test_iam_permissions" not in self._inner_api_calls:
+            self._inner_api_calls[
+                "test_iam_permissions"
+            ] = google.api_core.gapic_v1.method.wrap_method(
+                self.transport.test_iam_permissions,
+                default_retry=self._method_configs["TestIamPermissions"].retry,
+                default_timeout=self._method_configs["TestIamPermissions"].timeout,
+                client_info=self._client_info,
+            )
+
+        request = iam_policy_pb2.TestIamPermissionsRequest(
+            resource=resource, permissions=permissions
+        )
+        if metadata is None:
+            metadata = []
+        metadata = list(metadata)
+        try:
+            routing_header = [("resource", resource)]
+        except AttributeError:
+            pass
+        else:
+            routing_metadata = google.api_core.gapic_v1.routing_header.to_grpc_metadata(
+                routing_header
+            )
+            metadata.append(routing_metadata)
+
+        return self._inner_api_calls["test_iam_permissions"](
             request, retry=retry, timeout=timeout, metadata=metadata
         )
 
@@ -1088,8 +1345,8 @@ class BigtableTableAdminClient(object):
                 If a dict is provided, it must be of the same form as the protobuf
                 message :class:`~google.cloud.bigtable_admin_v2.types.Duration`
             retry (Optional[google.api_core.retry.Retry]):  A retry object used
-                to retry requests. If ``None`` is specified, requests will not
-                be retried.
+                to retry requests. If ``None`` is specified, requests will
+                be retried using a default configuration.
             timeout (Optional[float]): The amount of time, in seconds, to wait
                 for the request to complete. Note that if ``retry`` is
                 specified, the timeout applies to each individual attempt.
@@ -1176,8 +1433,8 @@ class BigtableTableAdminClient(object):
             name (str): The unique name of the requested snapshot. Values are of the form
                 ``projects/<project>/instances/<instance>/clusters/<cluster>/snapshots/<snapshot>``.
             retry (Optional[google.api_core.retry.Retry]):  A retry object used
-                to retry requests. If ``None`` is specified, requests will not
-                be retried.
+                to retry requests. If ``None`` is specified, requests will
+                be retried using a default configuration.
             timeout (Optional[float]): The amount of time, in seconds, to wait
                 for the request to complete. Note that if ``retry`` is
                 specified, the timeout applies to each individual attempt.
@@ -1273,8 +1530,8 @@ class BigtableTableAdminClient(object):
                 streaming is performed per-page, this determines the maximum number
                 of resources in a page.
             retry (Optional[google.api_core.retry.Retry]):  A retry object used
-                to retry requests. If ``None`` is specified, requests will not
-                be retried.
+                to retry requests. If ``None`` is specified, requests will
+                be retried using a default configuration.
             timeout (Optional[float]): The amount of time, in seconds, to wait
                 for the request to complete. Note that if ``retry`` is
                 specified, the timeout applies to each individual attempt.
@@ -1282,10 +1539,10 @@ class BigtableTableAdminClient(object):
                 that is provided to the method.
 
         Returns:
-            A :class:`~google.gax.PageIterator` instance. By default, this
-            is an iterable of :class:`~google.cloud.bigtable_admin_v2.types.Snapshot` instances.
-            This object can also be configured to iterate over the pages
-            of the response through the `options` parameter.
+            A :class:`~google.api_core.page_iterator.PageIterator` instance.
+            An iterable of :class:`~google.cloud.bigtable_admin_v2.types.Snapshot` instances.
+            You can also iterate over the pages of the response
+            using its `pages` property.
 
         Raises:
             google.api_core.exceptions.GoogleAPICallError: If the request
@@ -1365,8 +1622,8 @@ class BigtableTableAdminClient(object):
             name (str): The unique name of the snapshot to be deleted. Values are of the form
                 ``projects/<project>/instances/<instance>/clusters/<cluster>/snapshots/<snapshot>``.
             retry (Optional[google.api_core.retry.Retry]):  A retry object used
-                to retry requests. If ``None`` is specified, requests will not
-                be retried.
+                to retry requests. If ``None`` is specified, requests will
+                be retried using a default configuration.
             timeout (Optional[float]): The amount of time, in seconds, to wait
                 for the request to complete. Note that if ``retry`` is
                 specified, the timeout applies to each individual attempt.

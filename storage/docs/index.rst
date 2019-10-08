@@ -1,4 +1,4 @@
-.. include:: /../storage/README.rst
+.. include:: README.rst
 
 .. note::
 
@@ -18,6 +18,7 @@ API Reference
   buckets
   acl
   batch
+  constants
 
 Changelog
 ---------

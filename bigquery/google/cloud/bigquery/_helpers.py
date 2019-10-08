@@ -18,6 +18,7 @@ import base64
 import copy
 import datetime
 import decimal
+import re
 
 from google.cloud._helpers import UTC
 from google.cloud._helpers import _date_from_iso8601_date
@@ -29,6 +30,12 @@ from google.cloud._helpers import _to_bytes
 _RFC3339_MICROS_NO_ZULU = "%Y-%m-%dT%H:%M:%S.%f"
 _TIMEONLY_WO_MICROS = "%H:%M:%S"
 _TIMEONLY_W_MICROS = "%H:%M:%S.%f"
+_PROJECT_PREFIX_PATTERN = re.compile(
+    r"""
+    (?P<project_id>\S+\:[^.]+)\.(?P<dataset_id>[^.]+)(?:$|\.(?P<custom_id>[^.]+)$)
+""",
+    re.VERBOSE,
+)
 
 
 def _not_null(value, field):
@@ -197,6 +204,14 @@ def _field_to_index_mapping(schema):
     return {f.name: i for i, f in enumerate(schema)}
 
 
+def _field_from_json(resource, field):
+    converter = _CELLDATA_FROM_JSON.get(field.field_type, lambda value, _: value)
+    if field.mode == "REPEATED":
+        return [converter(item["v"], field) for item in resource]
+    else:
+        return converter(resource, field)
+
+
 def _row_tuple_from_json(row, schema):
     """Convert JSON row data to row with appropriate types.
 
@@ -214,12 +229,7 @@ def _row_tuple_from_json(row, schema):
     """
     row_data = []
     for field, cell in zip(schema, row["f"]):
-        converter = _CELLDATA_FROM_JSON[field.field_type]
-        if field.mode == "REPEATED":
-            row_data.append([converter(item["v"], field) for item in cell["v"]])
-        else:
-            row_data.append(converter(cell["v"], field))
-
+        row_data.append(_field_from_json(cell["v"], field))
     return tuple(row_data)
 
 
@@ -583,24 +593,42 @@ def _str_or_none(value):
         return str(value)
 
 
+def _split_id(full_id):
+    """Helper: split full_id into composite parts.
+
+    Args:
+        full_id (str): Fully-qualified ID in standard SQL format.
+
+    Returns:
+        List[str]: ID's parts separated into components.
+    """
+    with_prefix = _PROJECT_PREFIX_PATTERN.match(full_id)
+    if with_prefix is None:
+        parts = full_id.split(".")
+    else:
+        parts = with_prefix.groups()
+        parts = [part for part in parts if part]
+    return parts
+
+
 def _parse_3_part_id(full_id, default_project=None, property_name="table_id"):
     output_project_id = default_project
     output_dataset_id = None
     output_resource_id = None
-    parts = full_id.split(".")
+    parts = _split_id(full_id)
 
     if len(parts) != 2 and len(parts) != 3:
         raise ValueError(
             "{property_name} must be a fully-qualified ID in "
-            'standard SQL format. e.g. "project.dataset.{property_name}", '
+            'standard SQL format, e.g., "project.dataset.{property_name}", '
             "got {}".format(full_id, property_name=property_name)
         )
 
     if len(parts) == 2 and not default_project:
         raise ValueError(
             "When default_project is not set, {property_name} must be a "
-            "fully-qualified ID in standard SQL format. "
-            'e.g. "project.dataset_id.{property_name}", got {}'.format(
+            "fully-qualified ID in standard SQL format, "
+            'e.g., "project.dataset_id.{property_name}", got {}'.format(
                 full_id, property_name=property_name
             )
         )

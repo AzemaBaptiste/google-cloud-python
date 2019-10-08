@@ -44,6 +44,19 @@ _RETRYABLE_STREAM_ERRORS = (
     exceptions.GatewayTimeout,
     exceptions.Aborted,
 )
+_TERMINATING_STREAM_ERRORS = (exceptions.Cancelled,)
+_MAX_LOAD = 1.0
+"""The load threshold above which to pause the incoming message stream."""
+
+_RESUME_THRESHOLD = 0.8
+"""The load threshold below which to resume the incoming message stream."""
+
+_DEFAULT_STREAM_ACK_DEADLINE = 60
+"""The default message acknowledge deadline in seconds for incoming message stream.
+
+This default deadline is dynamically modified for the messages that are added
+to the lease management.
+"""
 
 
 def _maybe_wrap_exception(exception):
@@ -203,7 +216,7 @@ class StreamingPullManager(object):
             float: The load value.
         """
         if self._leaser is None:
-            return 0
+            return 0.0
 
         return max(
             [
@@ -223,7 +236,7 @@ class StreamingPullManager(object):
     def maybe_pause_consumer(self):
         """Check the current load and pause the consumer if needed."""
         with self._pause_resume_lock:
-            if self.load >= 1.0:
+            if self.load >= _MAX_LOAD:
                 if self._consumer is not None and not self._consumer.is_paused:
                     _LOGGER.debug(
                         "Message backlog over load at %.2f, pausing.", self.load
@@ -252,7 +265,7 @@ class StreamingPullManager(object):
             # currently on hold, if the current load allows for it.
             self._maybe_release_messages()
 
-            if self.load < self.flow_control.resume_threshold:
+            if self.load < _RESUME_THRESHOLD:
                 _LOGGER.debug("Current load is %.2f, resuming consumer.", self.load)
                 self._consumer.resume()
             else:
@@ -271,7 +284,7 @@ class StreamingPullManager(object):
         The method assumes the caller has acquired the ``_pause_resume_lock``.
         """
         while True:
-            if self.load >= 1.0:
+            if self.load >= _MAX_LOAD:
                 break  # already overloaded
 
             try:
@@ -379,12 +392,35 @@ class StreamingPullManager(object):
         )
 
         # Create the RPC
+
+        # We must use a fixed value for the ACK deadline, as we cannot read it
+        # from the subscription. The latter would require `pubsub.subscriptions.get`
+        # permission, which is not granted to the default subscriber role
+        # `roles/pubsub.subscriber`.
+        # See also https://github.com/googleapis/google-cloud-python/issues/9339
+        #
+        # When dynamic lease management is enabled for the "on hold" messages,
+        # the default stream ACK deadline should again be set based on the
+        # historic ACK timing data, i.e. `self.ack_histogram.percentile(99)`.
+        stream_ack_deadline_seconds = _DEFAULT_STREAM_ACK_DEADLINE
+
+        get_initial_request = functools.partial(
+            self._get_initial_request, stream_ack_deadline_seconds
+        )
         self._rpc = bidi.ResumableBidiRpc(
             start_rpc=self._client.api.streaming_pull,
-            initial_request=self._get_initial_request,
+            initial_request=get_initial_request,
             should_recover=self._should_recover,
+            should_terminate=self._should_terminate,
+            throttle_reopen=True,
         )
         self._rpc.add_done_callback(self._on_rpc_done)
+
+        _LOGGER.debug(
+            "Creating a stream, default ACK deadline set to {} seconds.".format(
+                stream_ack_deadline_seconds
+            )
+        )
 
         # Create references to threads
         self._dispatcher = dispatcher.Dispatcher(self, self._scheduler.queue)
@@ -456,11 +492,15 @@ class StreamingPullManager(object):
             for callback in self._close_callbacks:
                 callback(self, reason)
 
-    def _get_initial_request(self):
+    def _get_initial_request(self, stream_ack_deadline_seconds):
         """Return the initial request for the RPC.
 
         This defines the initial request that must always be sent to Pub/Sub
         immediately upon opening the subscription.
+
+        Args:
+            stream_ack_deadline_seconds (int):
+                The default message acknowledge deadline for the stream.
 
         Returns:
             google.cloud.pubsub_v1.types.StreamingPullRequest: A request
@@ -480,7 +520,7 @@ class StreamingPullManager(object):
         request = types.StreamingPullRequest(
             modify_deadline_ack_ids=list(lease_ids),
             modify_deadline_seconds=[self.ack_deadline] * len(lease_ids),
-            stream_ack_deadline_seconds=self.ack_histogram.percentile(99),
+            stream_ack_deadline_seconds=stream_ack_deadline_seconds,
             subscription=self._subscription,
         )
 
@@ -505,24 +545,13 @@ class StreamingPullManager(object):
             self._messages_on_hold.qsize(),
         )
 
-        # Immediately modack the messages we received, as this tells the server
-        # that we've received them.
-        items = [
-            requests.ModAckRequest(message.ack_id, self._ack_histogram.percentile(99))
-            for message in response.received_messages
-        ]
-        self._dispatcher.modify_ack_deadline(items)
-
         invoke_callbacks_for = []
 
         for received_message in response.received_messages:
             message = google.cloud.pubsub_v1.subscriber.message.Message(
-                received_message.message,
-                received_message.ack_id,
-                self._scheduler.queue,
-                autolease=False,
+                received_message.message, received_message.ack_id, self._scheduler.queue
             )
-            if self.load < 1.0:
+            if self.load < _MAX_LOAD:
                 req = requests.LeaseRequest(
                     ack_id=message.ack_id, byte_size=message.size
                 )
@@ -531,6 +560,15 @@ class StreamingPullManager(object):
                 self.maybe_pause_consumer()
             else:
                 self._messages_on_hold.put(message)
+
+        # Immediately (i.e. without waiting for the auto lease management)
+        # modack the messages we received and not put on hold, as this tells
+        # the server that we've received them.
+        items = [
+            requests.ModAckRequest(message.ack_id, self._ack_histogram.percentile(99))
+            for message in invoke_callbacks_for
+        ]
+        self._dispatcher.modify_ack_deadline(items)
 
         _LOGGER.debug(
             "Scheduling callbacks for %s new messages, new total on hold %s.",
@@ -560,6 +598,26 @@ class StreamingPullManager(object):
             _LOGGER.info("Observed recoverable stream error %s", exception)
             return True
         _LOGGER.info("Observed non-recoverable stream error %s", exception)
+        return False
+
+    def _should_terminate(self, exception):
+        """Determine if an error on the RPC stream should be terminated.
+
+        If the exception is one of the terminating exceptions, this will signal
+        to the consumer thread that it should terminate.
+
+        This will cause the stream to exit when it returns :data:`True`.
+
+        Returns:
+            bool: Indicates if the caller should terminate or attempt recovery.
+            Will be :data:`True` if the ``exception`` is "acceptable", i.e.
+            in a list of terminating exceptions.
+        """
+        exception = _maybe_wrap_exception(exception)
+        if isinstance(exception, _TERMINATING_STREAM_ERRORS):
+            _LOGGER.info("Observed terminating stream error %s", exception)
+            return True
+        _LOGGER.info("Observed non-terminating stream error %s", exception)
         return False
 
     def _on_rpc_done(self, future):
